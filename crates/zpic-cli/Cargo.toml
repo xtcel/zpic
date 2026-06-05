@@ -1,20 +1,29 @@
 [package]
-name = "zpic-cli"
+name = "zpic"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+description = "Rust-native image hosting CLI compatible with PicGo configuration."
+
+[lib]
+name = "zpic_cli"
+path = "src/lib.rs"
 
 [[bin]]
 name = "zpic"
 path = "src/main.rs"
 
 [dependencies]
-zpic-core = { path = "../zpic-core" }
-zpic-config = { path = "../zpic-config" }
-zpic-image = { path = "../zpic-image" }
-zpic-history = { path = "../zpic-history" }
-zpic-uploaders = { path = "../zpic-uploaders" }
+zpic-core = { workspace = true }
+zpic-config = { workspace = true }
+zpic-image = { workspace = true }
+zpic-history = { workspace = true }
+zpic-uploaders = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

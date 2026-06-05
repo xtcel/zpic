@@ -4,11 +4,16 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+description = "Built-in local, GitHub, and S3 uploaders for zpic."
 
 [dependencies]
-zpic-core = { path = "../zpic-core" }
-zpic-config = { path = "../zpic-config" }
-zpic-image = { path = "../zpic-image" }
+zpic-core = { workspace = true }
+zpic-config = { workspace = true }
+zpic-image = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 reqwest = { workspace = true }

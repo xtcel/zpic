@@ -18,6 +18,25 @@ crates/
 └── zpic-cli/         # the `zpic` binary
 ```
 
+## Installation
+
+```bash
+# From a local checkout
+cargo install --path crates/zpic-cli
+
+# From the GitHub repository
+cargo install --git https://github.com/xtcel/zpic zpic --bin zpic
+
+# From crates.io, after the package is published
+cargo install zpic --bin zpic
+
+# From Homebrew, after the tap is published
+brew install xtcel/tap/zpic
+```
+
+See [`docs/distribution.md`](docs/distribution.md) for the release and
+distribution checklist.
+
 ## Quick start
 
 ```bash
