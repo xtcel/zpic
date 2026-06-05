@@ -76,7 +76,7 @@ impl ZpicError {
                 "Validate the config file syntax; see the field mentioned in the error message.",
             ),
             ZpicError::UploaderNotFound(_) => Some(
-                "Add the missing uploader under `[uploaders.<name>]` or select an existing one.",
+                "Create it with `zpic set uploader <type> <name>` or switch to an existing one with `zpic use uploader <type> <name>`.",
             ),
             ZpicError::UploaderUnsupported(_) => Some(
                 "Switch to a built-in uploader (local, github, s3) or import a supported PicGo config.",

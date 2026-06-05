@@ -41,6 +41,16 @@ impl UploaderKind {
             UploaderKind::S3 => &["s3", "aws-s3", "r2"],
         }
     }
+
+    /// Resolve a CLI/config token into a built-in uploader kind.
+    pub fn from_alias(value: &str) -> Option<Self> {
+        let value = value.trim();
+        UploaderKind::all().into_iter().find(|kind| {
+            kind.picgo_aliases()
+                .iter()
+                .any(|alias| alias.eq_ignore_ascii_case(value))
+        })
+    }
 }
 
 /// Output rendering mode.

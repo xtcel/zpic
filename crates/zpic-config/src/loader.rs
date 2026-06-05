@@ -11,8 +11,11 @@ use zpic_core::config::{OutputFormat, RenameStrategy, UploaderKind};
 use zpic_core::error::{Result, ZpicError};
 
 use crate::paths::{candidate_picgo_paths, candidate_zpic_paths};
-use crate::picgo::PicGoConfig;
-use crate::zpic::ZpicConfigFile;
+use crate::picgo::{PicGoConfig, PicGoUploaderConfigItem, PicGoUploaderTypeConfigs};
+use crate::zpic::{
+    migrate_legacy, new_id, now_ms, warn_legacy_migration_once, PicBedSection,
+    PicBedUploaderMirror, UploaderConfigItem, UploaderTypeConfigs, ZpicConfigFile,
+};
 
 /// Where the active config came from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,8 +59,8 @@ impl ConfigSource {
 }
 
 /// In-memory representation of a resolved config. Wraps the parsed source
-/// so the CLI can ask "which file did this come from?" and "what's the
-/// effective default uploader name?".
+/// so the CLI can ask "which file did this come from?" and resolve the
+/// active uploader consistently.
 #[derive(Debug, Clone)]
 pub struct LoadedConfig {
     pub source: ConfigSource,
@@ -69,16 +72,29 @@ pub struct LoadedConfig {
 }
 
 impl LoadedConfig {
-    /// Return the configured default uploader name, if any.
-    pub fn default_uploader_name(&self) -> Option<&str> {
-        self.zpic.default_uploader.as_deref()
+    pub fn active_uploader_type(&self) -> Option<&str> {
+        self.zpic.active_uploader_type()
+    }
+
+    pub fn active_uploader_config_name(&self) -> Option<&str> {
+        let uploader_type = self.active_uploader_type()?;
+        self.zpic
+            .uploader
+            .get(uploader_type)?
+            .active()
+            .map(|item| item.config_name.as_str())
     }
 
     /// Return the active uploader section, if any.
-    pub fn active_uploader(&self) -> Option<(&str, &crate::zpic::UploaderSection)> {
-        let name = self.default_uploader_name()?;
-        let section = self.zpic.uploaders.get(name)?;
-        Some((name, section))
+    pub fn active_uploader(&self) -> Option<(String, crate::zpic::UploaderSection)> {
+        let uploader_type = self.active_uploader_type()?.to_string();
+        let section = self
+            .zpic
+            .uploader
+            .get(&uploader_type)?
+            .active()?
+            .to_uploader_section_for_type(&uploader_type);
+        Some((uploader_type, section))
     }
 }
 
@@ -173,7 +189,10 @@ impl ConfigLoader {
         if raw.trim().is_empty() {
             return None;
         }
-        let parsed: ZpicConfigFile = toml::from_str(&raw).ok()?;
+        let mut parsed: ZpicConfigFile = toml::from_str(&raw).ok()?;
+        if migrate_legacy(&mut parsed) {
+            warn_legacy_migration_once();
+        }
         Some(LoadedConfig {
             source: ConfigSource::Explicit(path.to_path_buf()),
             zpic: parsed,
@@ -221,64 +240,179 @@ impl ConfigLoader {
     }
 }
 
-/// Convert a PicGo config into a `ZpicConfigFile`. Only the active uploader
-/// is converted; the result is suitable for `import-picgo` and is also
-/// what the loader uses when reading directly from a PicGo file.
+/// Convert a PicGo config into a `ZpicConfigFile`. Prefers PicGo's
+/// multi-config `uploader.<type>` source of truth and falls back to the
+/// active `picBed.<type>` mirror for older configs.
 pub fn convert_picgo_to_zpic(picgo: &PicGoConfig) -> ZpicConfigFile {
     let mut out = ZpicConfigFile::default();
-    let active = match picgo.active_uploader() {
-        Some(name) => name,
-        None => return out,
-    };
-    let kind = match picgo.active_kind() {
-        Some(k) => k,
-        None => return out,
-    };
-    let block = match picgo.block(active) {
-        Some(b) => b,
-        None => return out,
-    };
-    let mut fields: BTreeMap<String, TomlValue> = BTreeMap::new();
-    for (k, v) in &block.fields {
-        // Skip the active uploader name to avoid `[uploaders.github].github`.
-        if k == "current" || k == "uploader" {
-            continue;
-        }
-        if let Some(toml_v) = json_to_toml(v) {
-            fields.insert(k.clone(), toml_v);
+    out.default_format = OutputFormat::Markdown;
+    out.rename.strategy = RenameStrategy::DateHash;
+    if let Some(plugins) = picgo
+        .picgo_plugins
+        .as_ref()
+        .and_then(|value| value.as_object())
+    {
+        for (name, enabled) in plugins {
+            if let Some(enabled) = enabled.as_bool() {
+                out.picgo_plugins.insert(name.clone(), enabled);
+            }
         }
     }
-    // Normalize common PicGo fields.
+
+    if let Some(pic_bed) = &picgo.pic_bed {
+        out.pic_bed = PicBedSection {
+            current: pic_bed.current.clone(),
+            uploader: pic_bed.uploader.clone(),
+            transformer: pic_bed.transformer.clone(),
+            proxy: pic_bed.proxy.clone(),
+            uploader_mirrors: BTreeMap::new(),
+        };
+    }
+
+    for (uploader_type, configs) in &picgo.uploader {
+        let converted = convert_picgo_type_configs(configs);
+        if !converted.config_list.is_empty() {
+            out.uploader.insert(uploader_type.clone(), converted);
+        }
+    }
+
+    if out.uploader.is_empty() {
+        let active = match picgo.active_uploader() {
+            Some(name) => name,
+            None => return out,
+        };
+        let kind = match picgo.active_kind() {
+            Some(kind) => kind,
+            None => return out,
+        };
+        let block = match picgo.block(active) {
+            Some(block) => block,
+            None => return out,
+        };
+        let fields = normalize_picgo_fields(json_object_to_toml_map(&block.fields));
+        let now = now_ms();
+        let item = UploaderConfigItem {
+            id: new_id(),
+            config_name: default_import_name(active, kind),
+            created_at: now,
+            updated_at: now,
+            fields,
+        };
+        out.uploader.insert(
+            active.to_string(),
+            UploaderTypeConfigs {
+                default_id: item.id.clone(),
+                config_list: vec![item],
+            },
+        );
+    }
+
+    for (uploader_type, configs) in &out.uploader {
+        if let Some(active) = configs.active() {
+            out.pic_bed.uploader_mirrors.insert(
+                uploader_type.clone(),
+                PicBedUploaderMirror::from_item(active),
+            );
+        }
+    }
+
+    if let Some(active_type) = out
+        .pic_bed
+        .current
+        .clone()
+        .or_else(|| out.pic_bed.uploader.clone())
+        .or_else(|| out.uploader.keys().next().cloned())
+    {
+        out.pic_bed.current = Some(active_type.clone());
+        out.pic_bed.uploader = Some(active_type);
+    }
+    out
+}
+
+fn convert_picgo_type_configs(configs: &PicGoUploaderTypeConfigs) -> UploaderTypeConfigs {
+    let mut out = UploaderTypeConfigs {
+        default_id: configs.default_id.clone(),
+        config_list: configs
+            .config_list
+            .iter()
+            .map(convert_picgo_config_item)
+            .collect(),
+    };
+    if out.default_id.is_empty() {
+        if let Some(first) = out.config_list.first() {
+            out.default_id = first.id.clone();
+        }
+    }
+    out
+}
+
+fn convert_picgo_config_item(item: &PicGoUploaderConfigItem) -> UploaderConfigItem {
+    let now = now_ms();
+    UploaderConfigItem {
+        id: if item.id.is_empty() {
+            new_id()
+        } else {
+            item.id.clone()
+        },
+        config_name: if item.config_name.trim().is_empty() {
+            "Default".to_string()
+        } else {
+            item.config_name.clone()
+        },
+        created_at: if item.created_at == 0 {
+            now
+        } else {
+            item.created_at
+        },
+        updated_at: if item.updated_at == 0 {
+            now
+        } else {
+            item.updated_at
+        },
+        fields: normalize_picgo_fields(json_object_to_toml_map(&item.fields)),
+    }
+}
+
+fn default_import_name(active: &str, kind: UploaderKind) -> String {
+    match kind {
+        UploaderKind::Local | UploaderKind::Github => "Default".to_string(),
+        UploaderKind::S3 => {
+            if active.eq_ignore_ascii_case("s3") {
+                "Default".to_string()
+            } else {
+                active.to_string()
+            }
+        }
+    }
+}
+
+fn json_object_to_toml_map(
+    values: &BTreeMap<String, serde_json::Value>,
+) -> BTreeMap<String, TomlValue> {
+    let mut out = BTreeMap::new();
+    for (key, value) in values {
+        if key == "current" || key == "uploader" || key == "transformer" || key == "proxy" {
+            continue;
+        }
+        if let Some(value) = json_to_toml(value) {
+            out.insert(key.clone(), value);
+        }
+    }
+    out
+}
+
+fn normalize_picgo_fields(mut fields: BTreeMap<String, TomlValue>) -> BTreeMap<String, TomlValue> {
     if let Some(custom) = fields.remove("customUrl") {
         fields.insert("public_base_url".to_string(), custom);
     }
     if let Some(path) = fields.remove("path") {
-        // PicGo's `path` is a prefix; treat it as path_prefix.
         fields.insert("path_prefix".to_string(), path);
     }
-    // For S3-style backends PicGo uses `area` etc.; preserve them.
-    if kind == UploaderKind::Github {
-        if let Some(repo) = fields.get("repo").cloned() {
-            // The customUrl for jsdelivr needs the branch. We don't know it
-            // here, so the user can set public_base_url later.
-            tracing::debug!(?repo, "imported PicGo github repo");
-        }
-    }
-    if kind == UploaderKind::S3 {
-        // PicGo `s3` uploader has `bucket`, `endpoint`, `region`, etc.
-    }
-    out.default_uploader = Some(active.to_string());
-    out.uploaders.insert(
-        active.to_string(),
-        crate::zpic::UploaderSection {
-            kind,
-            alias: Some(active.to_string()),
-            fields,
-        },
-    );
-    out.default_format = OutputFormat::Markdown;
-    out.rename.strategy = RenameStrategy::DateHash;
-    out
+    fields.remove("_id");
+    fields.remove("_configName");
+    fields.remove("_createdAt");
+    fields.remove("_updatedAt");
+    fields
 }
 
 /// Best-effort JSON -> TOML conversion used by the PicGo importer.
@@ -335,7 +469,8 @@ mod tests {
         )
         .unwrap();
         let loaded = ConfigLoader::load_explicit(&p).unwrap();
-        assert_eq!(loaded.default_uploader_name(), Some("l"));
+        assert_eq!(loaded.active_uploader_type(), Some("local"));
+        assert_eq!(loaded.active_uploader_config_name(), Some("l"));
     }
 
     #[test]
@@ -354,12 +489,64 @@ mod tests {
         }"#;
         let picgo = PicGoConfig::from_json(json).unwrap();
         let zpic = convert_picgo_to_zpic(&picgo);
-        let gh = zpic.uploaders.get("github").unwrap();
-        assert_eq!(gh.string_field("repo"), "me/picbed");
+        let gh = zpic.uploader.get("github").unwrap().active().unwrap();
+        assert_eq!(gh.field("repo").as_deref(), Some("me/picbed"));
         assert_eq!(
-            gh.string_field("public_base_url"),
-            "https://cdn.jsdelivr.net/gh/me/picbed"
+            gh.field("public_base_url").as_deref(),
+            Some("https://cdn.jsdelivr.net/gh/me/picbed")
         );
-        assert_eq!(gh.string_field("path_prefix"), "img/");
+        assert_eq!(gh.field("path_prefix").as_deref(), Some("img/"));
+        assert_eq!(zpic.active_uploader_type(), Some("github"));
+        assert!(zpic.pic_bed.uploader_mirrors.contains_key("github"));
+    }
+
+    #[test]
+    fn picgo_multi_config_is_preserved() {
+        let json = r#"{
+            "picBed": {
+                "current": "github",
+                "uploader": "github",
+                "github": {
+                    "repo": "fallback/repo"
+                }
+            },
+            "uploader": {
+                "github": {
+                    "defaultId": "id-work",
+                    "configList": [
+                        {
+                            "_id": "id-personal",
+                            "_configName": "Personal",
+                            "_createdAt": 1700000000000,
+                            "_updatedAt": 1700000000000,
+                            "repo": "me/personal",
+                            "token": "ghp_a"
+                        },
+                        {
+                            "_id": "id-work",
+                            "_configName": "Work",
+                            "_createdAt": 1700000001000,
+                            "_updatedAt": 1700000002000,
+                            "repo": "me/work",
+                            "token": "ghp_b"
+                        }
+                    ]
+                }
+            }
+        }"#;
+        let picgo = PicGoConfig::from_json(json).unwrap();
+        let zpic = convert_picgo_to_zpic(&picgo);
+        let gh = zpic.uploader.get("github").unwrap();
+        assert_eq!(gh.config_list.len(), 2);
+        assert_eq!(gh.default_id, "id-work");
+        assert_eq!(gh.active().unwrap().config_name, "Work");
+        assert_eq!(
+            zpic.pic_bed
+                .uploader_mirrors
+                .get("github")
+                .and_then(|mirror| mirror.fields.get("repo"))
+                .and_then(|value| value.as_str()),
+            Some("me/work")
+        );
     }
 }

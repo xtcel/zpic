@@ -1,8 +1,7 @@
 //! `zpic config` — initialize, show, and import-picgo.
 
-use std::path::PathBuf;
-
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::cli::ConfigAction;
 use crate::util::load_config;
@@ -64,9 +63,14 @@ fn cmd_import_picgo(from: Option<PathBuf>, to: Option<PathBuf>) -> Result<i32> {
     println!("imported PicGo config from {}", source.display());
     println!("wrote zpic config to {}", dest.display());
     println!();
-    println!(
-        "active uploader: {}",
-        cfg.default_uploader.as_deref().unwrap_or("<none>")
-    );
+    let active_type = cfg.active_uploader_type().unwrap_or("<none>");
+    let active_config = cfg
+        .active_uploader_type()
+        .and_then(|uploader_type| cfg.uploader.get(uploader_type))
+        .and_then(|store| store.active())
+        .map(|item| item.config_name.as_str())
+        .unwrap_or("<none>");
+    println!("active uploader: {active_type}");
+    println!("active config: {active_config}");
     Ok(0)
 }

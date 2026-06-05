@@ -162,9 +162,9 @@ fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) 
         report.checks.push(Check {
             name: "uploader".into(),
             status: CheckStatus::Fail,
-            message: "no default uploader configured".into(),
+            message: "no active uploader config is available".into(),
             fix: Some(
-                "set `default_uploader = \"<name>\"` and add a `[uploaders.<name>]` block".into(),
+                "run `zpic set uploader <type> <name>` to create one, then `zpic use uploader <type> <name>` if needed".into(),
             ),
         });
         return;
@@ -181,7 +181,7 @@ fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) 
     });
     match section.kind {
         zpic_core::config::UploaderKind::Local => {
-            if LocalUploader::from_config(section).is_err() {
+            if LocalUploader::from_config(&section).is_err() {
                 report.checks.push(Check {
                     name: format!("uploader ({name}) credentials"),
                     status: CheckStatus::Fail,
@@ -192,7 +192,7 @@ fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) 
                 });
             }
         }
-        zpic_core::config::UploaderKind::Github => match GitHubUploader::from_config(section) {
+        zpic_core::config::UploaderKind::Github => match GitHubUploader::from_config(&section) {
             Ok(_) => {}
             Err(e) => report.checks.push(Check {
                 name: format!("uploader ({name}) credentials"),
@@ -201,7 +201,7 @@ fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) 
                 fix: Some("set `GITHUB_TOKEN` or add `token` to the uploader block".into()),
             }),
         },
-        zpic_core::config::UploaderKind::S3 => match S3Uploader::from_config(section) {
+        zpic_core::config::UploaderKind::S3 => match S3Uploader::from_config(&section) {
             Ok(_) => {}
             Err(e) => report.checks.push(Check {
                 name: format!("uploader ({name}) credentials"),

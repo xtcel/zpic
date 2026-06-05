@@ -2,12 +2,12 @@
 
 pub mod config;
 pub mod error;
-pub mod upload;
 pub mod format;
+pub mod upload;
 
-pub use error::{Result, ZpicError};
 pub use config::{OutputFormat, RenameStrategy, UploaderKind, ZpicConfig};
+pub use error::{Result, ZpicError};
+pub use format::{render_format, render_format_for_kind};
 pub use upload::{
     UploadContext, UploadInput, UploadItem, UploadOutput, UploadReport, UploadRequest, Uploader,
 };
-pub use format::{render_format, render_format_for_kind};

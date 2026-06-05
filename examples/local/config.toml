@@ -1,4 +1,3 @@
-default_uploader = "local"
 default_format = "markdown"
 copy_after_upload = false
 history_enabled = true
@@ -10,7 +9,16 @@ path = "images/{yyyy}/{mm}/{dd}/{hash8}.{ext}"
 [format]
 markdown = "![{alt}]({url})"
 
-[uploaders.local]
-type = "local"
+[pic_bed]
+current = "local"
+uploader = "local"
+
+[pic_bed.local]
 target_dir = "./public/images"
 public_base_url = "/images"
+
+[uploader.local]
+defaultId = "cfg-default"
+configList = [
+  { _id = "cfg-default", _configName = "Default", _createdAt = 0, _updatedAt = 0, target_dir = "./public/images", public_base_url = "/images" },
+]

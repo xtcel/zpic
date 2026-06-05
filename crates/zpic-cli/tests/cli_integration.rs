@@ -39,6 +39,43 @@ public_base_url = "/images"
     std::fs::write(dir.path().join("config.toml"), cfg).unwrap();
 }
 
+fn write_picgo_compat_config(dir: &TempDir, target: &std::path::Path) {
+    let backup = target.join("backup");
+    let cfg = format!(
+        r#"
+default_format = "markdown"
+copy_after_upload = false
+history_enabled = false
+
+[rename]
+strategy = "date-hash"
+path = "images/{{yyyy}}/{{mm}}/{{dd}}/{{hash8}}.{{ext}}"
+
+[format]
+markdown = "![{{alt}}]({{url}})"
+
+[pic_bed]
+current = "local"
+uploader = "local"
+
+[pic_bed.local]
+target_dir = "{}"
+public_base_url = "/images"
+
+[uploader.local]
+defaultId = "cfg-default"
+configList = [
+  {{ _id = "cfg-default", _configName = "Default", _createdAt = 0, _updatedAt = 0, target_dir = "{}", public_base_url = "/images" }},
+  {{ _id = "cfg-backup", _configName = "Backup", _createdAt = 0, _updatedAt = 0, target_dir = "{}", public_base_url = "/backup" }}
+]
+"#,
+        target.display(),
+        target.display(),
+        backup.display()
+    );
+    std::fs::write(dir.path().join("config.toml"), cfg).unwrap();
+}
+
 fn write_png(path: &std::path::Path) {
     // Smallest valid PNG (1x1 transparent).
     let bytes = [
@@ -111,6 +148,30 @@ fn upload_multiple_files() {
     assert!(out.status.success());
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(json["items"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn upload_alias_u_works() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("public");
+    write_config(&dir, &target);
+    let png = dir.path().join("cover.png");
+    write_png(&png);
+
+    let out = Command::new(zpic_bin())
+        .args([
+            "--config",
+            dir.path().join("config.toml").to_str().unwrap(),
+            "u",
+            png.to_str().unwrap(),
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -215,11 +276,139 @@ fn import_picgo_writes_native_toml() {
     );
     assert!(dest.exists());
     let contents = std::fs::read_to_string(&dest).unwrap();
-    assert!(contents.contains("[uploaders.github]"));
+    assert!(contents.contains("[pic_bed]"));
+    assert!(contents.contains("[pic_bed.github]"));
+    assert!(contents.contains("[uploader.github]"));
+    assert!(contents.contains("configList"));
+    assert!(contents.contains("defaultId"));
     assert!(contents.contains("repo = \"me/picbed\""));
     // The original PicGo file must be unchanged.
     let picgo_contents = std::fs::read_to_string(&picgo).unwrap();
     assert!(picgo_contents.contains("ghp_x"));
+}
+
+#[test]
+fn uploader_commands_manage_named_configs() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("public");
+    write_picgo_compat_config(&dir, &target);
+    let config = dir.path().join("config.toml");
+
+    let list = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "uploader",
+            "list",
+            "--json",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(list.status.success());
+    let payload: serde_json::Value = serde_json::from_slice(&list.stdout).unwrap();
+    assert_eq!(payload["current_uploader"], "local");
+    assert_eq!(payload["types"][0]["configs"].as_array().unwrap().len(), 2);
+
+    let rename = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "uploader",
+            "rename",
+            "local",
+            "Backup",
+            "Archive",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(rename.status.success());
+
+    let copy = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "uploader",
+            "copy",
+            "local",
+            "Archive",
+            "Staging",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(copy.status.success());
+
+    let remove = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "uploader",
+            "rm",
+            "local",
+            "Staging",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(remove.status.success());
+
+    let contents = std::fs::read_to_string(&config).unwrap();
+    assert!(contents.contains("_configName = \"Archive\""));
+    assert!(!contents.contains("_configName = \"Backup\""));
+    assert!(!contents.contains("_configName = \"Staging\""));
+}
+
+#[test]
+fn use_and_set_commands_persist_active_config() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("public");
+    let work = dir.path().join("work-public");
+    write_picgo_compat_config(&dir, &target);
+    let config = dir.path().join("config.toml");
+
+    let set = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "set",
+            "uploader",
+            "local",
+            "Work",
+            "--from",
+            "Default",
+            "--field",
+            &format!("target_dir={}", work.display()),
+            "--field",
+            "public_base_url=/work",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        set.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&set.stderr)
+    );
+
+    let use_cmd = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "use",
+            "uploader",
+            "local",
+            "Work",
+            "--json",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(use_cmd.status.success());
+    let payload: serde_json::Value = serde_json::from_slice(&use_cmd.stdout).unwrap();
+    assert_eq!(payload["type"], "local");
+    assert_eq!(payload["active_config"], "Work");
+
+    let contents = std::fs::read_to_string(&config).unwrap();
+    assert!(contents.contains("_configName = \"Work\""));
+    assert!(contents.contains("defaultId ="));
+    assert!(contents.contains("public_base_url = \"/work\""));
+    assert!(contents.contains(&format!("target_dir = \"{}\"", work.display())));
 }
 
 #[test]

@@ -23,6 +23,7 @@ to the active uploader. Supports the following output formats:
 zpic upload ./cover.png
 zpic upload ./a.png ./b.jpg
 zpic upload --clipboard
+zpic u ./cover.png
 zpic upload ./cover.png --uploader github --format markdown --copy
 zpic upload ./cover.png --dry-run
 zpic upload ./cover.png --json
@@ -53,6 +54,92 @@ zpic upload ./cover.png --json
 When a single file fails, its `error` field is set and the other fields
 may be `null`. The `success` flag at the top level is `true` only when
 every item succeeded.
+
+`zpic u` is a direct alias for `zpic upload` and accepts the same flags.
+
+## `zpic uploader`
+
+Manage named uploader configs stored under `uploader.<type>.configList`.
+
+```bash
+zpic uploader list
+zpic uploader list github
+zpic uploader rename github Work Personal
+zpic uploader copy github Personal Staging
+zpic uploader rm github Staging
+```
+
+### `uploader list` JSON payload
+
+```json
+{
+  "current_uploader": "github",
+  "types": [
+    {
+      "type": "github",
+      "is_current": true,
+      "default_config": "Personal",
+      "configs": [
+        {
+          "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+          "name": "Personal",
+          "is_default": true,
+          "created_at": 1700000000000,
+          "updated_at": 1700000000000
+        }
+      ]
+    }
+  ]
+}
+```
+
+Config names are matched case-insensitively. `rename`, `copy`, and `rm`
+return exit code `0` on success and `1` on failure.
+
+## `zpic use uploader`
+
+Activate an uploader type and, optionally, a named config inside that
+type.
+
+```bash
+zpic use uploader github
+zpic use uploader github Work
+zpic use uploader local Default --json
+```
+
+### JSON payload
+
+```json
+{
+  "action": "use",
+  "type": "github",
+  "active_config": "Work",
+  "saved_to": "/Users/me/.config/zpic/config.toml"
+}
+```
+
+## `zpic set uploader`
+
+Create or update a named uploader config non-interactively. `--from`
+copies fields from an existing config in the same uploader type before
+applying any `--field key=value` overrides.
+
+```bash
+zpic set uploader github Work --field repo=me/picbed --field token=$GITHUB_TOKEN
+zpic set uploader github Staging --from Work --field branch=develop
+```
+
+### JSON payload
+
+```json
+{
+  "action": "set",
+  "type": "github",
+  "active_config": "Work",
+  "inherited_from": null,
+  "saved_to": "/Users/me/.config/zpic/config.toml"
+}
+```
 
 ## `zpic migrate`
 
@@ -171,7 +258,8 @@ zpic history list --json
 
 Convert a PicGo config (default: `~/.picgo/config.json`) into a native
 zpic TOML file (default: user config dir). The source PicGo file is
-never modified.
+never modified. The generated TOML uses PicGo's uploader-manager shape:
+`pic_bed.current`, `pic_bed.<type>`, and `uploader.<type>.configList`.
 
 ```bash
 zpic config import-picgo
@@ -185,6 +273,13 @@ Returns exit code `0` on success. Errors include:
   Node plugin with no native `zpic` implementation.
 - `ConfigInvalid` — the destination already exists or the source is
   unreadable.
+
+## Migration Notes
+
+Legacy zpic configs that still use `default_uploader` plus
+`[uploaders.<name>]` are auto-migrated in memory on load. Saving through
+`zpic uploader ...`, `zpic use uploader ...`, or `zpic set uploader ...`
+rewrites the file in the PicGo-compatible shape.
 
 ## Zed adapter hooks
 

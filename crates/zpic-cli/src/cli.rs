@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
-use crate::commands::{config, doctor, history, migrate, upload};
+use crate::commands::{config, doctor, history, migrate, set_cmd, upload, uploader, use_cmd};
 use zpic_core::error::ZpicError;
 
 #[derive(Debug, Parser)]
@@ -35,6 +35,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Upload one or more image files (or the clipboard) to the active uploader.
+    #[command(alias = "u")]
     Upload(UploadArgs),
     /// Rewrite local image references in a Markdown file or directory to remote URLs.
     Migrate(MigrateArgs),
@@ -47,6 +48,21 @@ pub enum Command {
     History {
         #[command(subcommand)]
         action: HistoryAction,
+    },
+    /// Manage named uploader configurations.
+    Uploader {
+        #[command(subcommand)]
+        action: UploaderAction,
+    },
+    /// Activate a module selection.
+    Use {
+        #[command(subcommand)]
+        action: UseAction,
+    },
+    /// Create or update module configuration.
+    Set {
+        #[command(subcommand)]
+        action: SetAction,
     },
     /// Run diagnostic checks for config, credentials, clipboard, and the history store.
     Doctor(DoctorArgs),
@@ -64,8 +80,8 @@ pub struct UploadArgs {
     #[arg(long)]
     pub clipboard: bool,
 
-    /// Override the configured default uploader.
-    #[arg(long, value_name = "NAME")]
+    /// Override the active uploader type.
+    #[arg(long, value_name = "TYPE")]
     pub uploader: Option<String>,
 
     /// Override the configured default output format (markdown, url, html, jsx).
@@ -115,8 +131,8 @@ pub struct MigrateArgs {
     #[arg(long)]
     pub ignore_remote: bool,
 
-    /// Override the configured default uploader.
-    #[arg(long, value_name = "NAME")]
+    /// Override the active uploader type.
+    #[arg(long, value_name = "TYPE")]
     pub uploader: Option<String>,
 
     /// Override the configured default output format.
@@ -163,6 +179,71 @@ pub enum HistoryAction {
     },
 }
 
+#[derive(Debug, Subcommand)]
+pub enum UploaderAction {
+    /// List configured uploader types or configs for one type.
+    List {
+        #[arg(value_name = "TYPE")]
+        uploader_type: Option<String>,
+    },
+    /// Rename a named config within one uploader type.
+    Rename {
+        #[arg(value_name = "TYPE")]
+        uploader_type: String,
+        #[arg(value_name = "OLD_NAME")]
+        old_name: String,
+        #[arg(value_name = "NEW_NAME")]
+        new_name: String,
+    },
+    /// Copy a named config without activating the copy.
+    Copy {
+        #[arg(value_name = "TYPE")]
+        uploader_type: String,
+        #[arg(value_name = "CONFIG_NAME")]
+        config_name: String,
+        #[arg(value_name = "NEW_CONFIG_NAME")]
+        new_config_name: String,
+    },
+    /// Remove a named config from one uploader type.
+    Rm {
+        #[arg(value_name = "TYPE")]
+        uploader_type: String,
+        #[arg(value_name = "CONFIG_NAME")]
+        config_name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum UseAction {
+    /// Activate an uploader type and, optionally, a named config.
+    Uploader {
+        #[arg(value_name = "TYPE")]
+        uploader_type: String,
+        #[arg(value_name = "CONFIG_NAME")]
+        config_name: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SetAction {
+    /// Create or update a named uploader config and make it active.
+    Uploader(SetUploaderArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SetUploaderArgs {
+    #[arg(value_name = "TYPE")]
+    pub uploader_type: String,
+    #[arg(value_name = "CONFIG_NAME")]
+    pub config_name: String,
+    /// Seed the new config from an existing config in the same uploader type.
+    #[arg(long, value_name = "NAME")]
+    pub from: Option<String>,
+    /// Set one config field. Repeat for multiple fields.
+    #[arg(long = "field", value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+    pub fields: Vec<String>,
+}
+
 #[derive(Debug, Args, Default)]
 pub struct DoctorArgs {}
 
@@ -184,6 +265,9 @@ pub async fn run(cli: Cli) -> Result<i32, i32> {
         Command::Migrate(args) => migrate::run(args, config_path, json).await,
         Command::Config { action } => config::run(action, config_path, json),
         Command::History { action } => history::run(action, config_path, json),
+        Command::Uploader { action } => uploader::run(action, config_path, json),
+        Command::Use { action } => use_cmd::run(action, config_path, json),
+        Command::Set { action } => set_cmd::run(action, config_path, json),
         Command::Doctor(_) => doctor::run(config_path, json),
         Command::Version => {
             println!("zpic {}", env!("CARGO_PKG_VERSION"));

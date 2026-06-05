@@ -23,6 +23,8 @@ use zpic_core::error::{Result, ZpicError};
 pub struct PicGoConfig {
     #[serde(rename = "picBed", default)]
     pub pic_bed: Option<PicBed>,
+    #[serde(default)]
+    pub uploader: BTreeMap<String, PicGoUploaderTypeConfigs>,
     #[serde(rename = "picgoPlugins", default)]
     pub picgo_plugins: Option<Value>,
 }
@@ -50,9 +52,7 @@ impl PicGoConfig {
     /// or `None` if it isn't supported.
     pub fn active_kind(&self) -> Option<UploaderKind> {
         let name = self.active_uploader()?;
-        UploaderKind::all()
-            .into_iter()
-            .find(|k| k.picgo_aliases().iter().any(|a| *a == name))
+        UploaderKind::from_alias(name)
     }
 
     /// Return `true` when the active uploader is only available as a PicGo
@@ -60,9 +60,7 @@ impl PicGoConfig {
     pub fn is_unsupported_plugin(&self) -> bool {
         match self.active_uploader() {
             None => false,
-            Some(name) => UploaderKind::all()
-                .iter()
-                .all(|k| !k.picgo_aliases().iter().any(|a| *a == name)),
+            Some(name) => UploaderKind::from_alias(name).is_none(),
         }
     }
 
@@ -83,6 +81,8 @@ impl PicGoConfig {
 pub struct PicBed {
     pub current: Option<String>,
     pub uploader: Option<String>,
+    pub transformer: Option<String>,
+    pub proxy: Option<String>,
     #[serde(flatten)]
     pub uploaders: BTreeMap<String, PicGoUploaderBlock>,
 }
@@ -100,6 +100,43 @@ impl PicGoUploaderBlock {
             .get(key)
             .and_then(|v| v.as_str().map(String::from))
     }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PicGoUploaderTypeConfigs {
+    #[serde(rename = "configList", default)]
+    pub config_list: Vec<PicGoUploaderConfigItem>,
+    #[serde(rename = "defaultId", default)]
+    pub default_id: String,
+}
+
+impl PicGoUploaderTypeConfigs {
+    pub fn active(&self) -> Option<&PicGoUploaderConfigItem> {
+        if !self.default_id.is_empty() {
+            if let Some(item) = self
+                .config_list
+                .iter()
+                .find(|item| item.id == self.default_id)
+            {
+                return Some(item);
+            }
+        }
+        self.config_list.first()
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PicGoUploaderConfigItem {
+    #[serde(rename = "_id", default)]
+    pub id: String,
+    #[serde(rename = "_configName", default)]
+    pub config_name: String,
+    #[serde(rename = "_createdAt", default)]
+    pub created_at: i64,
+    #[serde(rename = "_updatedAt", default)]
+    pub updated_at: i64,
+    #[serde(flatten, default)]
+    pub fields: BTreeMap<String, Value>,
 }
 
 #[cfg(test)]
