@@ -8,3 +8,4 @@ pub mod set_cmd;
 pub mod upload;
 pub mod uploader;
 pub mod use_cmd;
+pub mod zed;

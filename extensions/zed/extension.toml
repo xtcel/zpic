@@ -1,0 +1,28 @@
+id = "zpic-assistant"
+name = "zpic Assistant"
+description = "Assistant slash commands that shell out to your local zpic binary."
+version = "0.1.0"
+schema_version = 1
+authors = ["xtcel"]
+repository = "https://github.com/xtcel/zpic"
+
+[[capabilities]]
+kind = "process:exec"
+command = "zpic"
+args = ["**"]
+
+[slash_commands.zpic-upload]
+description = "Upload the current clipboard image with your local zpic CLI"
+requires_argument = false
+
+[slash_commands.zpic-doctor]
+description = "Run `zpic doctor` and return the diagnostics"
+requires_argument = false
+
+[slash_commands.zpic-history]
+description = "Show recent zpic upload history"
+requires_argument = false
+
+[slash_commands.zpic-uploader-list]
+description = "List configured zpic uploaders"
+requires_argument = false

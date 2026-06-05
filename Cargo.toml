@@ -8,6 +8,7 @@ members = [
     "crates/zpic-uploaders",
     "crates/zpic-cli",
 ]
+exclude = ["extensions/zed"]
 
 [workspace.package]
 version = "0.1.0"

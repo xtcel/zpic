@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
-use crate::commands::{config, doctor, history, migrate, set_cmd, upload, uploader, use_cmd};
+use crate::commands::{config, doctor, history, migrate, set_cmd, upload, uploader, use_cmd, zed};
 use zpic_core::error::ZpicError;
 
 #[derive(Debug, Parser)]
@@ -66,6 +66,11 @@ pub enum Command {
     },
     /// Run diagnostic checks for config, credentials, clipboard, and the history store.
     Doctor(DoctorArgs),
+    /// Scaffold Zed editor integration into the current project.
+    Zed {
+        #[command(subcommand)]
+        action: ZedAction,
+    },
     /// Print version information.
     Version,
 }
@@ -247,6 +252,25 @@ pub struct SetUploaderArgs {
 #[derive(Debug, Args, Default)]
 pub struct DoctorArgs {}
 
+#[derive(Debug, Subcommand)]
+pub enum ZedAction {
+    /// Create project-local `.zed` tasks and helper scripts for zpic.
+    Init(ZedInitArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ZedInitArgs {
+    /// Project root where `.zed` should be written. Defaults to the current directory.
+    #[arg(long, value_name = "DIR")]
+    pub project_root: Option<PathBuf>,
+    /// Override the zpic binary path written into generated task env vars.
+    #[arg(long, value_name = "PATH")]
+    pub zpic_bin: Option<PathBuf>,
+    /// Overwrite previously generated files.
+    #[arg(long)]
+    pub force: bool,
+}
+
 impl Cli {
     /// Parse argv using `clap::Parser`.
     pub fn parse_args() -> Self {
@@ -269,6 +293,7 @@ pub async fn run(cli: Cli) -> Result<i32, i32> {
         Command::Use { action } => use_cmd::run(action, config_path, json),
         Command::Set { action } => set_cmd::run(action, config_path, json),
         Command::Doctor(_) => doctor::run(config_path, json),
+        Command::Zed { action } => zed::run(action, json),
         Command::Version => {
             println!("zpic {}", env!("CARGO_PKG_VERSION"));
             Ok(0)

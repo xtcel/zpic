@@ -65,12 +65,13 @@ Before a release:
 ## GitHub Releases
 
 For non-Rust users, distribute prebuilt archives through GitHub
-Releases. A practical first matrix is:
+Releases. This repository now includes
+[`release.yml`](../.github/workflows/release.yml), which triggers on a
+tag like `v0.1.1` and currently builds:
 
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 - `x86_64-unknown-linux-gnu`
-- `aarch64-unknown-linux-gnu`
 - `x86_64-pc-windows-msvc`
 
 Recommended artifact naming:
@@ -79,12 +80,15 @@ Recommended artifact naming:
 zpic-v0.1.0-x86_64-apple-darwin.tar.gz
 zpic-v0.1.0-aarch64-apple-darwin.tar.gz
 zpic-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
-zpic-v0.1.0-aarch64-unknown-linux-gnu.tar.gz
 zpic-v0.1.0-x86_64-pc-windows-msvc.zip
+zpic-v0.1.0-source.tar.gz
 ```
 
 Each archive should contain the `zpic` binary plus top-level license
-files and, optionally, the README.
+files and, optionally, the README. The workflow also uploads:
+
+- `checksums.txt` — SHA-256 manifest for all release archives
+- `zpic.rb` — rendered Homebrew formula ready to copy into the tap repo
 
 ## Homebrew Distribution
 
@@ -95,15 +99,20 @@ tap repository. For this project, create:
 - Formula path: `Formula/zpic.rb`
 - Install command: `brew install xtcel/tap/zpic`
 
-The formula should download the matching archive from a GitHub Release,
-verify its SHA-256, and install the `zpic` binary into `bin`.
+The checked-in [`Formula/zpic.rb`](../Formula/zpic.rb) file is the
+template source-of-truth. Each tagged release renders a concrete
+`zpic.rb` formula that points at the versioned `zpic-v<version>-source.tar.gz`
+release asset and includes the matching SHA-256.
+
+That generated formula should be copied into `xtcel/homebrew-tap` and
+committed there. The formula builds from source with `cargo install`,
+which is a better fit for Homebrew than shipping a binary-only formula.
 
 ## Suggested Release Flow
 
 1. Merge release-ready changes to `main`.
 2. Bump the version in the workspace root.
 3. Publish the Cargo packages to crates.io.
-4. Tag the repo, for example `v0.1.0`.
-5. Build and upload platform archives to the GitHub Release for that tag.
-6. Update `xtcel/homebrew-tap/Formula/zpic.rb` with the new URLs and SHA-256 values.
-7. Verify fresh installs with both `cargo install ...` and `brew install ...`.
+4. Push a tag like `v0.1.1` to trigger `.github/workflows/release.yml`.
+5. Copy the generated `zpic.rb` release asset into `xtcel/homebrew-tap/Formula/zpic.rb`.
+6. Verify fresh installs with both `cargo install ...` and `brew install ...`.

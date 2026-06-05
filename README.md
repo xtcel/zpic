@@ -58,6 +58,9 @@ cargo build --release
 # PicGo-compatible alias for `upload`
 ./target/release/zpic u ./cover.png
 
+# Scaffold project-local Zed tasks and helper scripts
+./target/release/zpic zed init
+
 # Upload with a custom output format and copy the result to the clipboard
 ./target/release/zpic upload ./cover.png --format markdown --copy
 
@@ -137,9 +140,26 @@ and agent integrations (Zed slash commands, MCP tools). Concretely:
   `changes`
 - `zpic doctor --json` — object with one entry per subsystem check
 - `zpic history list --json` — array of history entries
+- `zpic zed init --json` — created `.zed` task and helper file paths
 
 Exit codes: `0` on success, non-zero on any failure. Diagnostic messages
 go to `stderr`; the JSON payload stays on `stdout`.
+
+## Zed integration
+
+`zpic` ships a task-first Zed workflow for day-to-day editing, plus a thin
+dev extension for Assistant slash commands:
+
+1. Install `zpic` locally.
+2. In any writing project, run `zpic zed init`.
+3. Open that project in Zed and use the generated `.zed/tasks.json` entries
+   such as `zpic: upload clipboard as markdown`.
+4. Optionally merge `.zed/zpic-keymap.json.example` into your global Zed
+   `keymap.json` for shortcuts.
+5. If you also want Assistant slash commands, install the dev extension from
+   [`extensions/zed`](extensions/zed).
+
+See [`docs/zed-integration.md`](docs/zed-integration.md) for details.
 
 ## Status
 

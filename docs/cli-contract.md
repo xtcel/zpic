@@ -258,6 +258,42 @@ zpic history list --json
     "status": "ok"
   }
 ]
+
+## `zpic zed init`
+
+Scaffold project-local Zed tasks and helper scripts into a `.zed/`
+directory inside the current project (or an explicit `--project-root`).
+
+```bash
+zpic zed init
+zpic zed init --project-root ~/notes --zpic-bin /opt/homebrew/bin/zpic
+zpic zed init --json
+```
+
+Generated files:
+
+- `.zed/tasks.json`
+- `.zed/zpic-keymap.json.example`
+- `.zed/zpic-README.md`
+- platform-specific clipboard upload helper script
+- platform-specific current-file migrate helper script
+
+### JSON payload
+
+```json
+{
+  "action": "init",
+  "project_root": "/Users/me/notes",
+  "shell": "posix",
+  "created": [
+    "/Users/me/notes/.zed/tasks.json",
+    "/Users/me/notes/.zed/zpic-keymap.json.example",
+    "/Users/me/notes/.zed/zpic-README.md",
+    "/Users/me/notes/.zed/zpic-upload-from-clipboard.sh",
+    "/Users/me/notes/.zed/zpic-migrate-current-file.sh"
+  ]
+}
+```
 ```
 
 ## `zpic config import-picgo`
