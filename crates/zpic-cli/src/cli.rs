@@ -233,9 +233,9 @@ pub enum SetAction {
 #[derive(Debug, Args)]
 pub struct SetUploaderArgs {
     #[arg(value_name = "TYPE")]
-    pub uploader_type: String,
+    pub uploader_type: Option<String>,
     #[arg(value_name = "CONFIG_NAME")]
-    pub config_name: String,
+    pub config_name: Option<String>,
     /// Seed the new config from an existing config in the same uploader type.
     #[arg(long, value_name = "NAME")]
     pub from: Option<String>,

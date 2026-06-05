@@ -5,7 +5,7 @@
 //! exercise the local filesystem pipeline end to end.
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use tempfile::TempDir;
 
@@ -409,6 +409,47 @@ fn use_and_set_commands_persist_active_config() {
     assert!(contents.contains("defaultId ="));
     assert!(contents.contains("public_base_url = \"/work\""));
     assert!(contents.contains(&format!("target_dir = \"{}\"", work.display())));
+}
+
+#[test]
+fn set_uploader_guided_mode_prompts_for_type_and_fields() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("guided-public");
+    write_config(&dir, &target);
+    let config = dir.path().join("config.toml");
+
+    let mut child = Command::new(zpic_bin())
+        .args(["--config", config.to_str().unwrap(), "set", "uploader"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("zpic runs");
+
+    {
+        use std::io::Write;
+        let stdin = child.stdin.as_mut().expect("stdin available");
+        writeln!(stdin, "1").unwrap();
+        writeln!(stdin, "Guided").unwrap();
+        writeln!(stdin).unwrap();
+        writeln!(stdin, "{}", target.display()).unwrap();
+        writeln!(stdin, "/guided").unwrap();
+    }
+
+    let out = child.wait_with_output().expect("waits");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Available uploader types:"));
+    assert!(stdout.contains("Setting fields for `local`:"));
+
+    let contents = std::fs::read_to_string(&config).unwrap();
+    assert!(contents.contains("_configName = \"Guided\""));
+    assert!(contents.contains(&format!("target_dir = \"{}\"", target.display())));
+    assert!(contents.contains("public_base_url = \"/guided\""));
 }
 
 #[test]

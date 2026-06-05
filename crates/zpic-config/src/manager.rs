@@ -103,9 +103,15 @@ impl<'a> UploaderConfigManager<'a> {
         self.assert_type(uploader_type)?;
         let store = self.config.uploader.get(uploader_type).unwrap();
         if store.config_list.is_empty() {
-            return Err(ZpicError::ConfigInvalid(format!(
-                "uploader type '{uploader_type}' has no saved configs; run `zpic set uploader {uploader_type} <name>` first"
-            )));
+            let placeholder_name = config_name
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .unwrap_or("Default");
+            return self.create_or_update(
+                uploader_type,
+                Some(placeholder_name),
+                BTreeMap::new(),
+            );
         }
         let target_id = if let Some(name) = config_name {
             let target = store
@@ -154,29 +160,6 @@ impl<'a> UploaderConfigManager<'a> {
             .map(|n| n.trim().to_string())
             .filter(|n| !n.is_empty())
             .unwrap_or_default();
-
-        if !desired_name.is_empty() {
-            // Verify uniqueness (case-insensitive) when creating a new one.
-            // If a config with the same name (case-insensitive) exists,
-            // we'll fall through to the update path below. PicGo's
-            // UploaderConfigManager behaves the same way.
-            if let Some(store) = self.config.uploader.get(uploader_type) {
-                if let Some(existing) = store.find_by_name(&desired_name) {
-                    // Surface a clear "name already exists" error when the
-                    // user asked to *create* a new config with the same
-                    // (case-different) name as an existing one. We only
-                    // tolerate case-insensitive collisions when fields are
-                    // provided (i.e. the user is updating).
-                    if fields.is_empty() {
-                        return Err(ManagerError::DuplicateName(
-                            existing.config_name.clone(),
-                            uploader_type.into(),
-                        )
-                        .into());
-                    }
-                }
-            }
-        }
 
         let store = self
             .config

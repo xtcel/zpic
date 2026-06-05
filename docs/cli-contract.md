@@ -125,9 +125,15 @@ copies fields from an existing config in the same uploader type before
 applying any `--field key=value` overrides.
 
 ```bash
+zpic set uploader
 zpic set uploader github Work --field repo=me/picbed --field token=$GITHUB_TOKEN
 zpic set uploader github Staging --from Work --field branch=develop
 ```
+
+When `type`, `configName`, or field values are omitted in text mode,
+`zpic set uploader` enters guided setup: it lists the built-in uploader
+types, lets the user choose one, then prompts only for the fields that
+type requires.
 
 ### JSON payload
 

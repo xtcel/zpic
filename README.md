@@ -52,6 +52,9 @@ cargo build --release
   --field branch=main \
   --field token=$GITHUB_TOKEN
 
+# Or run guided setup: pick a type, then fill the fields it needs
+./target/release/zpic set uploader
+
 # Migrate a markdown file in dry-run mode
 ./target/release/zpic migrate README.md --dry-run
 
