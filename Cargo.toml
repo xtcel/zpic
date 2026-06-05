@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/zpic-core",
+    "crates/zpic-config",
+    "crates/zpic-image",
+    "crates/zpic-history",
+    "crates/zpic-uploaders",
+    "crates/zpic-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourname/zpic"
+authors = ["yong zhang"]
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# CLI / arg parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Errors
+thiserror = "1"
+anyhow = "1"
+
+# HTTP
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream", "rustls-tls"] }
+
+# Filesystem / paths
+directories = "5"
+walkdir = "2"
+tempfile = "3"
+
+# Bytes
+bytes = "1"
+
+# Hashing
+blake3 = "1"
+hex = "0.4"
+
+# Image / mime
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp", "bmp"] }
+infer = "0.16"
+mime_guess = "2"
+
+# IDs / time
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+# Clipboard
+arboard = "3"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# AWS S3
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls", "credentials-process"] }
+aws-credential-types = "1"
+aws-sdk-s3 = "1"
+aws-smithy-runtime-api = "1"
+
+# Base64
+base64 = "0.22"
+
+# URL utilities
+url = "2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

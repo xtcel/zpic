@@ -1,0 +1,16 @@
+default_uploader = "local"
+default_format = "markdown"
+copy_after_upload = false
+history_enabled = true
+
+[rename]
+strategy = "date-hash"
+path = "images/{yyyy}/{mm}/{dd}/{hash8}.{ext}"
+
+[format]
+markdown = "![{alt}]({url})"
+
+[uploaders.local]
+type = "local"
+target_dir = "./public/images"
+public_base_url = "/images"

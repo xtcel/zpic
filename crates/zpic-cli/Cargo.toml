@@ -1,0 +1,41 @@
+[package]
+name = "zpic-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "zpic"
+path = "src/main.rs"
+
+[dependencies]
+zpic-core = { path = "../zpic-core" }
+zpic-config = { path = "../zpic-config" }
+zpic-image = { path = "../zpic-image" }
+zpic-history = { path = "../zpic-history" }
+zpic-uploaders = { path = "../zpic-uploaders" }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+arboard = { workspace = true }
+walkdir = { workspace = true }
+directories = { workspace = true }
+bytes = { workspace = true }
+sha2 = "0.10"
+hex = { workspace = true }
+uuid = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true }
+base64 = { workspace = true }
+toml = { workspace = true }
+pulldown-cmark = "0.12"
+glob = "0.3"
+regex = "1"
+tempfile = { workspace = true }
