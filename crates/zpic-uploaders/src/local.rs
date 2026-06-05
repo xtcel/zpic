@@ -50,7 +50,7 @@ impl LocalUploader {
 
 #[async_trait]
 impl Uploader for LocalUploader {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "local"
     }
 

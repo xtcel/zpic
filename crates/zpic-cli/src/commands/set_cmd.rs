@@ -8,10 +8,12 @@ use cliclack::{input, password, select};
 use serde::Serialize;
 
 use crate::cli::{SetAction, SetUploaderArgs};
-use crate::util::{load_config, resolve_or_create_type_key, save_loaded_config};
+use crate::util::{
+    load_config, load_uploader_registry, resolve_or_create_type_key, save_loaded_config,
+};
 use zpic_config::{UploaderConfigItem, UploaderConfigManager};
-use zpic_core::config::UploaderKind;
 use zpic_core::error::{Result, ZpicError};
+use zpic_plugins::UploaderRegistry;
 
 pub fn run(action: SetAction, explicit_config: Option<PathBuf>, json: bool) -> Result<i32> {
     match action {
@@ -25,12 +27,13 @@ fn cmd_set_uploader(
     json: bool,
 ) -> Result<i32> {
     let mut config = load_config(explicit_config.as_deref())?;
+    let registry = load_uploader_registry()?;
     let interactive = !json && (args.uploader_type.is_none() || args.fields.is_empty());
 
     let resolved = if interactive {
-        collect_interactive_args(&config, args)?
+        collect_interactive_args(&config, &registry.registry, args)?
     } else {
-        finalize_args(&config, args)?
+        finalize_args(&config, &registry.registry, args)?
     };
 
     let (active_config, saved_to) = {
@@ -76,6 +79,7 @@ fn cmd_set_uploader(
 
 fn finalize_args(
     config: &zpic_config::LoadedConfig,
+    registry: &UploaderRegistry,
     args: SetUploaderArgs,
 ) -> Result<ResolvedSetArgs> {
     let uploader_type = args.uploader_type.ok_or_else(|| {
@@ -83,7 +87,7 @@ fn finalize_args(
             "missing uploader type; run `zpic set uploader` for guided mode".into(),
         )
     })?;
-    let uploader_type = resolve_or_create_type_key(config, &uploader_type)?;
+    let uploader_type = resolve_or_create_type_key(config, registry, &uploader_type)?;
     let config_name = args.config_name.ok_or_else(|| {
         ZpicError::InvalidArgument(
             "missing config name; run `zpic set uploader` for guided mode".into(),
@@ -103,23 +107,25 @@ fn finalize_args(
 
 fn collect_interactive_args(
     config: &zpic_config::LoadedConfig,
+    registry: &UploaderRegistry,
     args: SetUploaderArgs,
 ) -> Result<ResolvedSetArgs> {
     if io::stdin().is_terminal() && io::stdout().is_terminal() {
-        collect_interactive_args_menu(config, args)
+        collect_interactive_args_menu(config, registry, args)
     } else {
-        collect_interactive_args_fallback(config, args)
+        collect_interactive_args_fallback(config, registry, args)
     }
 }
 
 fn collect_interactive_args_menu(
     config: &zpic_config::LoadedConfig,
+    registry: &UploaderRegistry,
     args: SetUploaderArgs,
 ) -> Result<ResolvedSetArgs> {
     let current_type = config.active_uploader_type().map(str::to_string);
     let uploader_type = match args.uploader_type {
-        Some(uploader_type) => resolve_or_create_type_key(config, &uploader_type)?,
-        None => select_uploader_type_menu(current_type.as_deref())?,
+        Some(uploader_type) => resolve_or_create_type_key(config, registry, &uploader_type)?,
+        None => select_uploader_type_menu(registry, current_type.as_deref())?,
     };
 
     let config_names = config_names_for_type(config, &uploader_type);
@@ -156,7 +162,7 @@ fn collect_interactive_args_menu(
     )?;
 
     let fields = if args.fields.is_empty() {
-        collect_fields_for_type_menu(&uploader_type, &base_fields)?
+        collect_fields_for_type_menu(registry, &uploader_type, &base_fields)?
     } else {
         parse_fields(&args.fields)?
     };
@@ -172,6 +178,7 @@ fn collect_interactive_args_menu(
 
 fn collect_interactive_args_fallback(
     config: &zpic_config::LoadedConfig,
+    registry: &UploaderRegistry,
     args: SetUploaderArgs,
 ) -> Result<ResolvedSetArgs> {
     let mut stdout = io::stdout();
@@ -179,8 +186,8 @@ fn collect_interactive_args_fallback(
 
     let current_type = config.active_uploader_type().map(str::to_string);
     let uploader_type = match args.uploader_type {
-        Some(uploader_type) => resolve_or_create_type_key(config, &uploader_type)?,
-        None => select_uploader_type(&mut stdin, &mut stdout, current_type.as_deref())?,
+        Some(uploader_type) => resolve_or_create_type_key(config, registry, &uploader_type)?,
+        None => select_uploader_type(registry, &mut stdin, &mut stdout, current_type.as_deref())?,
     };
 
     let config_names = config_names_for_type(config, &uploader_type);
@@ -220,7 +227,13 @@ fn collect_interactive_args_fallback(
     )?;
 
     let fields = if args.fields.is_empty() {
-        collect_fields_for_type(&mut stdin, &mut stdout, &uploader_type, &base_fields)?
+        collect_fields_for_type(
+            registry,
+            &mut stdin,
+            &mut stdout,
+            &uploader_type,
+            &base_fields,
+        )?
     } else {
         parse_fields(&args.fields)?
     };
@@ -234,18 +247,26 @@ fn collect_interactive_args_fallback(
     })
 }
 
-fn select_uploader_type_menu(current_type: Option<&str>) -> Result<String> {
+fn select_uploader_type_menu(
+    registry: &UploaderRegistry,
+    current_type: Option<&str>,
+) -> Result<String> {
     let mut prompt = select("Choose uploader type");
     let mut initial_value = None;
-    for kind in UploaderKind::all() {
-        let value = kind.as_str().to_string();
-        let label = if Some(kind.as_str()) == current_type {
+    for descriptor in registry.descriptors() {
+        let value = descriptor.type_name.clone();
+        let label = if Some(descriptor.type_name.as_str()) == current_type {
             initial_value = Some(value.clone());
-            format!("{} (Current)", kind.as_str())
+            format!("{} (Current)", descriptor.display_name)
         } else {
-            kind.as_str().to_string()
+            descriptor.display_name.clone()
         };
-        prompt = prompt.item(value, label, "");
+        let hint = if descriptor.display_name == descriptor.type_name {
+            String::new()
+        } else {
+            descriptor.type_name.clone()
+        };
+        prompt = prompt.item(value, label, hint);
     }
     if let Some(current) = initial_value {
         prompt = prompt.initial_value(current);
@@ -319,36 +340,37 @@ fn prompt_config_name_menu(config_names: &[String]) -> Result<String> {
 }
 
 fn collect_fields_for_type_menu(
+    registry: &UploaderRegistry,
     uploader_type: &str,
     base_fields: &BTreeMap<String, toml::Value>,
 ) -> Result<BTreeMap<String, toml::Value>> {
     let mut out = BTreeMap::new();
-    let kind = UploaderKind::from_alias(uploader_type).ok_or_else(|| {
+    let schema = schema_for(registry, uploader_type).ok_or_else(|| {
         ZpicError::ConfigInvalid(format!(
             "uploader type '{}' is not supported for guided setup",
             uploader_type
         ))
     })?;
 
-    for field in schema_for(kind) {
+    for field in schema {
         let default = base_fields
-            .get(field.key)
+            .get(field.key.as_str())
             .map(toml_value_to_display)
-            .or_else(|| field.default.map(str::to_string));
-        let value = prompt_field_menu(field, default.as_deref())?;
+            .or_else(|| field.default.clone());
+        let value = prompt_field_menu(&field, default.as_deref())?;
         if let Some(value) = value {
-            out.insert(field.key.to_string(), parse_toml_value(value.trim()));
+            out.insert(field.key.clone(), parse_toml_value(value.trim()));
         }
     }
     Ok(out)
 }
 
 fn prompt_field_menu(field: &FieldPrompt, default: Option<&str>) -> Result<Option<String>> {
-    if is_secret_field(field.key) {
+    if field.secret {
         let label = if default.is_some() {
             format!("{} (leave empty to keep current value)", field.prompt)
         } else {
-            field.prompt.to_string()
+            field.prompt.clone()
         };
         let mut prompt = password(label);
         if !field.required || default.is_some() {
@@ -361,7 +383,7 @@ fn prompt_field_menu(field: &FieldPrompt, default: Option<&str>) -> Result<Optio
         return Ok(Some(value));
     }
 
-    let mut prompt = input(field.prompt).required(field.required);
+    let mut prompt = input(field.prompt.as_str()).required(field.required);
     if let Some(default) = default {
         prompt = prompt.default_input(default);
     }
@@ -374,27 +396,25 @@ fn prompt_field_menu(field: &FieldPrompt, default: Option<&str>) -> Result<Optio
     }
 }
 
-fn is_secret_field(key: &str) -> bool {
-    matches!(key, "token" | "secret_access_key")
-}
-
 fn select_uploader_type<R: io::BufRead, W: Write>(
+    registry: &UploaderRegistry,
     reader: &mut R,
     writer: &mut W,
     current_type: Option<&str>,
 ) -> Result<String> {
     writeln!(writer, "Available uploader types:").map_err(io_error)?;
-    let kinds = UploaderKind::all();
-    let default_index = current_type
-        .and_then(UploaderKind::from_alias)
-        .and_then(|kind| kinds.iter().position(|candidate| *candidate == kind))
+    let descriptors = registry.descriptors();
+    let default_index = descriptors
+        .iter()
+        .position(|descriptor| Some(descriptor.type_name.as_str()) == current_type)
         .map(|index| index + 1)
         .unwrap_or(1);
-    for (index, kind) in kinds.iter().enumerate() {
-        if Some(kind.as_str()) == current_type {
-            writeln!(writer, "  {}. {} [Current]", index + 1, kind.as_str()).map_err(io_error)?;
+    for (index, descriptor) in descriptors.iter().enumerate() {
+        if Some(descriptor.type_name.as_str()) == current_type {
+            writeln!(writer, "  {}. {} [Current]", index + 1, descriptor.display_name)
+                .map_err(io_error)?;
         } else {
-            writeln!(writer, "  {}. {}", index + 1, kind.as_str()).map_err(io_error)?;
+            writeln!(writer, "  {}. {}", index + 1, descriptor.display_name).map_err(io_error)?;
         }
     }
     writer.flush().map_err(io_error)?;
@@ -409,12 +429,12 @@ fn select_uploader_type<R: io::BufRead, W: Write>(
         .unwrap_or_else(|| default_index.to_string());
         let trimmed = input.trim();
         if let Ok(index) = trimmed.parse::<usize>() {
-            if (1..=kinds.len()).contains(&index) {
-                return Ok(kinds[index - 1].as_str().to_string());
+            if (1..=descriptors.len()).contains(&index) {
+                return Ok(descriptors[index - 1].type_name.clone());
             }
         }
-        if let Some(kind) = UploaderKind::from_alias(trimmed) {
-            return Ok(kind.as_str().to_string());
+        if let Some(descriptor) = registry.resolve(trimmed) {
+            return Ok(descriptor.type_name.clone());
         }
         writeln!(writer, "Invalid selection. Enter a number or a type name.").map_err(io_error)?;
         writer.flush().map_err(io_error)?;
@@ -477,13 +497,14 @@ fn select_config_name<R: io::BufRead, W: Write>(
 }
 
 fn collect_fields_for_type<R: io::BufRead, W: Write>(
+    registry: &UploaderRegistry,
     reader: &mut R,
     writer: &mut W,
     uploader_type: &str,
     base_fields: &BTreeMap<String, toml::Value>,
 ) -> Result<BTreeMap<String, toml::Value>> {
     let mut out = BTreeMap::new();
-    let kind = UploaderKind::from_alias(uploader_type).ok_or_else(|| {
+    let schema = schema_for(registry, uploader_type).ok_or_else(|| {
         ZpicError::ConfigInvalid(format!(
             "uploader type '{}' is not supported for guided setup",
             uploader_type
@@ -491,33 +512,36 @@ fn collect_fields_for_type<R: io::BufRead, W: Write>(
     })?;
 
     writeln!(writer).map_err(io_error)?;
-    writeln!(writer, "Setting fields for `{}`:", kind.as_str()).map_err(io_error)?;
+    writeln!(writer, "Setting fields for `{}`:", uploader_type).map_err(io_error)?;
     writer.flush().map_err(io_error)?;
 
-    for field in schema_for(kind) {
+    for field in schema {
         let default = base_fields
-            .get(field.key)
+            .get(field.key.as_str())
             .map(toml_value_to_display)
-            .or_else(|| field.default.map(str::to_string));
+            .or_else(|| field.default.clone());
         let value = if field.required {
-            prompt_non_empty(reader, writer, field.prompt, default.as_deref())?
+            prompt_non_empty(reader, writer, field.prompt.as_str(), default.as_deref())?
         } else {
-            match prompt_optional(reader, writer, field.prompt, default.as_deref())? {
+            match prompt_optional(reader, writer, field.prompt.as_str(), default.as_deref())? {
                 Some(value) => value,
                 None => continue,
             }
         };
-        out.insert(field.key.to_string(), parse_toml_value(value.trim()));
+        out.insert(field.key.clone(), parse_toml_value(value.trim()));
     }
     Ok(out)
 }
 
-fn schema_for(kind: UploaderKind) -> &'static [FieldPrompt] {
-    match kind {
-        UploaderKind::Local => LOCAL_FIELDS,
-        UploaderKind::Github => GITHUB_FIELDS,
-        UploaderKind::S3 => S3_FIELDS,
-    }
+fn schema_for(registry: &UploaderRegistry, uploader_type: &str) -> Option<Vec<FieldPrompt>> {
+    let descriptor = registry.resolve(uploader_type)?;
+    Some(
+        descriptor
+            .fields
+            .iter()
+            .map(FieldPrompt::from_schema)
+            .collect(),
+    )
 }
 
 fn resolve_base_fields(
@@ -709,63 +733,24 @@ impl SelectedConfig {
 
 #[derive(Debug)]
 struct FieldPrompt {
-    key: &'static str,
-    prompt: &'static str,
+    key: String,
+    prompt: String,
     required: bool,
-    default: Option<&'static str>,
+    secret: bool,
+    default: Option<String>,
 }
 
 impl FieldPrompt {
-    const fn required(
-        key: &'static str,
-        prompt: &'static str,
-        default: Option<&'static str>,
-    ) -> Self {
+    fn from_schema(field: &zpic_plugins::UploaderFieldSchema) -> Self {
         Self {
-            key,
-            prompt,
-            required: true,
-            default,
-        }
-    }
-
-    const fn optional(
-        key: &'static str,
-        prompt: &'static str,
-        default: Option<&'static str>,
-    ) -> Self {
-        Self {
-            key,
-            prompt,
-            required: false,
-            default,
+            key: field.key.clone(),
+            prompt: field.label.clone(),
+            required: field.required,
+            secret: field.secret,
+            default: field.default.clone(),
         }
     }
 }
-
-const LOCAL_FIELDS: &[FieldPrompt] = &[
-    FieldPrompt::required("target_dir", "Target directory", None),
-    FieldPrompt::required("public_base_url", "Public base URL", None),
-];
-
-const GITHUB_FIELDS: &[FieldPrompt] = &[
-    FieldPrompt::required("repo", "GitHub repo (owner/repo)", None),
-    FieldPrompt::required("branch", "Branch", Some("master")),
-    FieldPrompt::required("token", "GitHub token", None),
-    FieldPrompt::optional("path_prefix", "Path prefix", None),
-    FieldPrompt::optional("public_base_url", "Custom public base URL", None),
-];
-
-const S3_FIELDS: &[FieldPrompt] = &[
-    FieldPrompt::required("endpoint", "S3 endpoint", None),
-    FieldPrompt::optional("region", "Region", Some("auto")),
-    FieldPrompt::required("bucket", "Bucket", None),
-    FieldPrompt::required("access_key_id", "Access key ID", None),
-    FieldPrompt::required("secret_access_key", "Secret access key", None),
-    FieldPrompt::required("public_base_url", "Public base URL", None),
-    FieldPrompt::optional("cache_control", "Cache-Control", None),
-    FieldPrompt::optional("acl", "ACL", None),
-];
 
 #[derive(Debug, Serialize)]
 struct SetPayload {

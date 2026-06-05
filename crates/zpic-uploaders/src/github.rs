@@ -161,7 +161,7 @@ impl GitHubUploader {
 
 #[async_trait]
 impl Uploader for GitHubUploader {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "github"
     }
 

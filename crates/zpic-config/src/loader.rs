@@ -85,7 +85,7 @@ impl LoadedConfig {
             .map(|item| item.config_name.as_str())
     }
 
-    /// Return the active uploader section, if any.
+    /// Return the active built-in uploader section, if any.
     pub fn active_uploader(&self) -> Option<(String, crate::zpic::UploaderSection)> {
         let uploader_type = self.active_uploader_type()?.to_string();
         let section = self
@@ -93,7 +93,8 @@ impl LoadedConfig {
             .uploader
             .get(&uploader_type)?
             .active()?
-            .to_uploader_section_for_type(&uploader_type);
+            .to_uploader_section_for_type(&uploader_type)
+            .ok()?;
         Some((uploader_type, section))
     }
 }
@@ -227,9 +228,6 @@ impl ConfigLoader {
     pub fn import_picgo(source: &Path, dest: &Path) -> Result<ZpicConfigFile> {
         let loaded = Self::load_picgo(source)
             .ok_or_else(|| ZpicError::ConfigInvalid(format!("cannot read {}", source.display())))?;
-        if let Err(e) = loaded.picgo.as_ref().unwrap().ensure_supported() {
-            return Err(e);
-        }
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -281,10 +279,6 @@ pub fn convert_picgo_to_zpic(picgo: &PicGoConfig) -> ZpicConfigFile {
             Some(name) => name,
             None => return out,
         };
-        let kind = match picgo.active_kind() {
-            Some(kind) => kind,
-            None => return out,
-        };
         let block = match picgo.block(active) {
             Some(block) => block,
             None => return out,
@@ -293,7 +287,7 @@ pub fn convert_picgo_to_zpic(picgo: &PicGoConfig) -> ZpicConfigFile {
         let now = now_ms();
         let item = UploaderConfigItem {
             id: new_id(),
-            config_name: default_import_name(active, kind),
+            config_name: default_import_name(active, picgo.active_kind()),
             created_at: now,
             updated_at: now,
             fields,
@@ -373,16 +367,17 @@ fn convert_picgo_config_item(item: &PicGoUploaderConfigItem) -> UploaderConfigIt
     }
 }
 
-fn default_import_name(active: &str, kind: UploaderKind) -> String {
+fn default_import_name(active: &str, kind: Option<UploaderKind>) -> String {
     match kind {
-        UploaderKind::Local | UploaderKind::Github => "Default".to_string(),
-        UploaderKind::S3 => {
+        Some(UploaderKind::Local | UploaderKind::Github) => "Default".to_string(),
+        Some(UploaderKind::S3) => {
             if active.eq_ignore_ascii_case("s3") {
                 "Default".to_string()
             } else {
                 active.to_string()
             }
         }
+        None => "Default".to_string(),
     }
 }
 

@@ -12,6 +12,7 @@ use std::sync::Once;
 use serde::{Deserialize, Serialize};
 
 use zpic_core::config::{OutputFormat, RenameStrategy, UploaderKind};
+use zpic_core::error::{Result, ZpicError};
 
 /// Top-level zpic config file. Uses the PicGo-compatible shape.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -185,18 +186,32 @@ impl UploaderConfigItem {
         UploaderKind::from_alias(&t)
     }
 
-    /// Convert to the `UploaderSection` shape that the uploader constructors
-    /// accept. Prefers the uploader type path token because PicGo stores the
-    /// type in the path (`uploader.<type>`) rather than inside each config.
-    pub fn to_uploader_section_for_type(&self, uploader_type: &str) -> UploaderSection {
+    /// Convert to the `UploaderSection` shape that built-in uploader
+    /// constructors accept. Unknown uploader types are rejected unless the
+    /// caller passes an explicit fallback kind.
+    pub fn to_uploader_section_for_type_with_fallback(
+        &self,
+        uploader_type: &str,
+        fallback_kind: Option<UploaderKind>,
+    ) -> Result<UploaderSection> {
         let kind = UploaderKind::from_alias(uploader_type)
             .or_else(|| self.uploader_kind())
-            .unwrap_or(UploaderKind::Local);
-        UploaderSection {
+            .or(fallback_kind)
+            .ok_or_else(|| {
+                ZpicError::ConfigInvalid(format!(
+                    "uploader type '{}' does not map to a built-in uploader kind",
+                    uploader_type
+                ))
+            })?;
+        Ok(UploaderSection {
             kind,
             alias: Some(self.config_name.clone()),
             fields: self.fields.clone(),
-        }
+        })
+    }
+
+    pub fn to_uploader_section_for_type(&self, uploader_type: &str) -> Result<UploaderSection> {
+        self.to_uploader_section_for_type_with_fallback(uploader_type, None)
     }
 }
 

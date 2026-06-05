@@ -5,6 +5,7 @@ members = [
     "crates/zpic-config",
     "crates/zpic-image",
     "crates/zpic-history",
+    "crates/zpic-plugins",
     "crates/zpic-uploaders",
     "crates/zpic-cli",
 ]
@@ -24,6 +25,7 @@ zpic-core = { version = "0.1.0", path = "crates/zpic-core" }
 zpic-config = { version = "0.1.0", path = "crates/zpic-config" }
 zpic-image = { version = "0.1.0", path = "crates/zpic-image" }
 zpic-history = { version = "0.1.0", path = "crates/zpic-history" }
+zpic-plugins = { version = "0.1.0", path = "crates/zpic-plugins" }
 zpic-uploaders = { version = "0.1.0", path = "crates/zpic-uploaders" }
 
 # Async runtime
@@ -88,6 +90,9 @@ base64 = "0.22"
 
 # URL utilities
 url = "2"
+
+# WASM runtime
+wasmtime = { version = "29.0.1", default-features = false, features = ["cranelift", "runtime", "wat"] }
 
 [profile.release]
 lto = "thin"

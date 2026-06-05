@@ -195,7 +195,7 @@ pub struct UploadRequest {
 #[async_trait]
 pub trait Uploader: Send + Sync {
     /// Stable identifier used in CLI flags and config files.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// Run the upload. Returning `Err` causes the CLI to mark the file as
     /// failed and continue with the rest of the batch.

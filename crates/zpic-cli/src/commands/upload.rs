@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::cli::UploadArgs;
 use crate::output::{render_item_text, UploadPayload};
 use crate::pipeline::{self, ClipboardImage, PendingUpload};
-use crate::util::{load_config, resolve_uploader};
+use crate::util::{load_config, load_uploader_registry, resolve_uploader};
 use zpic_core::config::OutputFormat;
 use zpic_core::error::{Result, ZpicError};
 use zpic_core::upload::UploadItem;
@@ -14,7 +14,9 @@ const CLIPBOARD_SOURCE: &str = "<clipboard>";
 
 pub async fn run(args: UploadArgs, explicit_config: Option<PathBuf>, json: bool) -> Result<i32> {
     let config = load_config(explicit_config.as_deref())?;
-    let (uploader_name, section) = resolve_uploader(&config, args.uploader.as_deref())?;
+    let loaded_registry = load_uploader_registry()?;
+    let resolved = resolve_uploader(&config, &loaded_registry.registry, args.uploader.as_deref())?;
+    let uploader = resolved.instantiate()?;
 
     let mut inputs: Vec<PendingUpload> = Vec::new();
     if args.clipboard {
@@ -40,7 +42,7 @@ pub async fn run(args: UploadArgs, explicit_config: Option<PathBuf>, json: bool)
     for mut pending in inputs {
         pending.explicit_name = args.name.clone();
         pending.explicit_alt = args.alt.clone();
-        match pipeline::run_upload(&config, &uploader_name, &section, pending, args.dry_run).await {
+        match pipeline::run_upload(&config, uploader.as_ref(), pending, args.dry_run).await {
             Ok(out) => {
                 if let Some(text) = rendered_text(&out, &config, &args, json) {
                     last_text = Some(text);

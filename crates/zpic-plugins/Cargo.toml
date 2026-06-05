@@ -1,5 +1,5 @@
 [package]
-name = "zpic-uploaders"
+name = "zpic-plugins"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,30 +8,22 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
-description = "Built-in local, GitHub, and S3 uploaders for zpic."
+description = "Plugin manifests, discovery, registry, and WASM runtime support for zpic."
 
 [dependencies]
 zpic-core = { workspace = true }
 zpic-config = { workspace = true }
-zpic-image = { workspace = true }
-zpic-plugins = { workspace = true }
 async-trait = { workspace = true }
-bytes = { workspace = true }
-reqwest = { workspace = true }
+directories = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
 thiserror = { workspace = true }
+toml = { workspace = true }
 tracing = { workspace = true }
 base64 = { workspace = true }
-sha2 = "0.10"
-hex = { workspace = true }
-url = { workspace = true }
-aws-config = { workspace = true }
-aws-credential-types = { workspace = true }
-aws-sdk-s3 = { workspace = true }
-toml = { workspace = true }
+wasmtime = { workspace = true }
 
 [dev-dependencies]
+bytes = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

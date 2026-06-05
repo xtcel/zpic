@@ -2,19 +2,18 @@
 
 use std::path::PathBuf;
 
-use crate::util::load_config;
+use crate::util::{load_config, load_uploader_registry, resolve_uploader, LoadedUploaderRegistry};
 use zpic_config::paths::{candidate_picgo_paths, default_zpic_config};
 use zpic_core::error::Result;
 use zpic_history::HistoryStore;
-use zpic_uploaders::GitHubUploader;
-use zpic_uploaders::LocalUploader;
-use zpic_uploaders::S3Uploader;
 
 pub fn run(explicit_config: Option<PathBuf>, json: bool) -> Result<i32> {
     let mut report = DoctorReport::default();
+    let registry = load_uploader_registry()?;
     check_config(&explicit_config, &mut report);
     check_picgo(&mut report);
-    check_active_uploader(&explicit_config, &mut report);
+    check_plugin_discovery(&registry, &mut report);
+    check_active_uploader(&explicit_config, &registry, &mut report);
     check_clipboard(&mut report);
     check_history(&mut report);
 
@@ -145,7 +144,35 @@ fn check_picgo(report: &mut DoctorReport) {
     }
 }
 
-fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) {
+fn check_plugin_discovery(registry: &LoadedUploaderRegistry, report: &mut DoctorReport) {
+    if registry.diagnostics.is_empty() {
+        report.checks.push(Check {
+            name: "plugins".into(),
+            status: CheckStatus::Pass,
+            message: "plugin discovery succeeded".into(),
+            fix: None,
+        });
+        return;
+    }
+
+    for diagnostic in &registry.diagnostics {
+        report.checks.push(Check {
+            name: "plugins".into(),
+            status: match diagnostic.level {
+                zpic_plugins::PluginDiagnosticLevel::Warn => CheckStatus::Warn,
+                zpic_plugins::PluginDiagnosticLevel::Fail => CheckStatus::Fail,
+            },
+            message: format!("{}: {}", diagnostic.path, diagnostic.message),
+            fix: Some("fix or remove the invalid plugin, then rerun `zpic doctor`".into()),
+        });
+    }
+}
+
+fn check_active_uploader(
+    explicit: &Option<PathBuf>,
+    registry: &LoadedUploaderRegistry,
+    report: &mut DoctorReport,
+) {
     let loaded = match load_config(explicit.as_deref()) {
         Ok(c) => c,
         Err(e) => {
@@ -158,60 +185,39 @@ fn check_active_uploader(explicit: &Option<PathBuf>, report: &mut DoctorReport) 
             return;
         }
     };
-    let Some((name, section)) = loaded.active_uploader() else {
-        report.checks.push(Check {
-            name: "uploader".into(),
-            status: CheckStatus::Fail,
-            message: "no active uploader config is available".into(),
-            fix: Some(
-                "run `zpic set uploader <type> <name>` to create one, then `zpic use uploader <type> <name>` if needed".into(),
-            ),
-        });
-        return;
+    let resolved = match resolve_uploader(&loaded, &registry.registry, None) {
+        Ok(resolved) => resolved,
+        Err(e) => {
+            report.checks.push(Check {
+                name: "uploader".into(),
+                status: CheckStatus::Fail,
+                message: e.to_string(),
+                fix: Some(
+                    "run `zpic set uploader <type> <name>` to create one, then `zpic use uploader <type> <name>` if needed".into(),
+                ),
+            });
+            return;
+        }
     };
     report.checks.push(Check {
-        name: format!("uploader ({name})"),
+        name: format!("uploader ({})", resolved.configured_type),
         status: CheckStatus::Pass,
         message: format!(
-            "type: {}, source: {}",
-            section.kind.as_str(),
+            "runtime type: {}, config: {}, source: {}",
+            resolved.runtime_type,
+            resolved.config_name,
             loaded.source.label()
         ),
         fix: None,
     });
-    match section.kind {
-        zpic_core::config::UploaderKind::Local => {
-            if LocalUploader::from_config(&section).is_err() {
-                report.checks.push(Check {
-                    name: format!("uploader ({name}) credentials"),
-                    status: CheckStatus::Fail,
-                    message: "missing target_dir or public_base_url".into(),
-                    fix: Some(
-                        "add `target_dir` and `public_base_url` to the uploader block".into(),
-                    ),
-                });
-            }
-        }
-        zpic_core::config::UploaderKind::Github => match GitHubUploader::from_config(&section) {
-            Ok(_) => {}
-            Err(e) => report.checks.push(Check {
-                name: format!("uploader ({name}) credentials"),
-                status: CheckStatus::Fail,
-                message: e.to_string(),
-                fix: Some("set `GITHUB_TOKEN` or add `token` to the uploader block".into()),
-            }),
-        },
-        zpic_core::config::UploaderKind::S3 => match S3Uploader::from_config(&section) {
-            Ok(_) => {}
-            Err(e) => report.checks.push(Check {
-                name: format!("uploader ({name}) credentials"),
-                status: CheckStatus::Fail,
-                message: e.to_string(),
-                fix: Some(
-                    "set `access_key_id` and `secret_access_key` env vars or config keys".into(),
-                ),
-            }),
-        },
+
+    if let Err(err) = resolved.validate() {
+        report.checks.push(Check {
+            name: format!("uploader ({}) validation", resolved.configured_type),
+            status: CheckStatus::Fail,
+            message: err.to_string(),
+            fix: Some("check the uploader config fields or plugin installation".into()),
+        });
     }
 }
 

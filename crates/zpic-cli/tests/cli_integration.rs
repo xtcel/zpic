@@ -76,6 +76,96 @@ configList = [
     std::fs::write(dir.path().join("config.toml"), cfg).unwrap();
 }
 
+fn write_plugin_config(dir: &TempDir, uploader_type: &str) {
+    let cfg = format!(
+        r#"
+default_format = "markdown"
+copy_after_upload = false
+history_enabled = false
+
+[rename]
+strategy = "date-hash"
+path = "images/{{yyyy}}/{{mm}}/{{dd}}/{{hash8}}.{{ext}}"
+
+[pic_bed]
+current = "{uploader_type}"
+uploader = "{uploader_type}"
+
+[uploader.{uploader_type}]
+defaultId = "cfg-default"
+configList = [
+  {{ _id = "cfg-default", _configName = "Default", _createdAt = 0, _updatedAt = 0, token = "demo-token" }}
+]
+"#
+    );
+    std::fs::write(dir.path().join("config.toml"), cfg).unwrap();
+}
+
+fn write_picgo_plugin_config(dir: &TempDir, uploader_type: &str) -> PathBuf {
+    let path = dir.path().join("picgo.json");
+    std::fs::write(
+        &path,
+        format!(
+            r#"{{
+            "picBed": {{
+                "current": "{uploader_type}",
+                "{uploader_type}": {{
+                    "token": "demo-token"
+                }}
+            }}
+        }}"#
+        ),
+    )
+    .unwrap();
+    path
+}
+
+fn write_demo_plugin(root: &std::path::Path) -> PathBuf {
+    let plugin_dir = root.join("demo-plugin");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+    std::fs::write(
+        plugin_dir.join("plugin.toml"),
+        r#"
+id = "demo-plugin"
+name = "Demo Plugin"
+version = "0.1.0"
+
+[[uploaders]]
+type = "demo-wasm"
+display_name = "Demo WASM"
+picgo_aliases = ["picgo-demo"]
+
+[[uploaders.fields]]
+key = "token"
+label = "API Token"
+required = true
+secret = true
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        plugin_dir.join("plugin.wasm"),
+        r#"(module
+  (memory (export "memory") 1)
+  (global $heap (mut i32) (i32.const 2048))
+  (func (export "zpic_alloc") (param $len i32) (result i32)
+    (local $ptr i32)
+    global.get $heap
+    local.set $ptr
+    global.get $heap
+    local.get $len
+    i32.add
+    global.set $heap
+    local.get $ptr)
+  (func (export "zpic_upload") (param $ptr i32) (param $len i32) (result i64)
+    i64.const 296352743424)
+  (data (i32.const 0) "{\"url\":\"https://plugins.example/uploaded.png\",\"uploader\":\"demo-wasm\"}")
+)"#,
+    )
+    .unwrap();
+    plugin_dir
+}
+
 fn write_png(path: &std::path::Path) {
     // Smallest valid PNG (1x1 transparent).
     let bytes = [
@@ -148,6 +238,98 @@ fn upload_multiple_files() {
     assert!(out.status.success());
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(json["items"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn upload_uses_installed_plugin_uploader() {
+    let dir = TempDir::new().unwrap();
+    let plugin_root = dir.path().join("plugins");
+    write_demo_plugin(&plugin_root);
+    write_plugin_config(&dir, "demo-wasm");
+    let png = dir.path().join("cover.png");
+    write_png(&png);
+
+    let out = Command::new(zpic_bin())
+        .env("ZPIC_PLUGIN_DIRS", &plugin_root)
+        .args([
+            "--config",
+            dir.path().join("config.toml").to_str().unwrap(),
+            "upload",
+            png.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let item = &json["items"][0];
+    assert_eq!(item["uploader"], "demo-wasm");
+    assert_eq!(item["url"], "https://plugins.example/uploaded.png");
+}
+
+#[test]
+fn plugin_alias_resolves_from_picgo_config() {
+    let dir = TempDir::new().unwrap();
+    let plugin_root = dir.path().join("plugins");
+    write_demo_plugin(&plugin_root);
+    let picgo = write_picgo_plugin_config(&dir, "picgo-demo");
+    let png = dir.path().join("cover.png");
+    write_png(&png);
+
+    let out = Command::new(zpic_bin())
+        .env("ZPIC_PLUGIN_DIRS", &plugin_root)
+        .args([
+            "--config",
+            picgo.to_str().unwrap(),
+            "upload",
+            png.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["items"][0]["uploader"], "demo-wasm");
+}
+
+#[test]
+fn doctor_reports_plugin_discovery() {
+    let dir = TempDir::new().unwrap();
+    let plugin_root = dir.path().join("plugins");
+    write_demo_plugin(&plugin_root);
+    write_plugin_config(&dir, "demo-wasm");
+
+    let out = Command::new(zpic_bin())
+        .env("ZPIC_PLUGIN_DIRS", &plugin_root)
+        .args([
+            "--config",
+            dir.path().join("config.toml").to_str().unwrap(),
+            "doctor",
+            "--json",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let checks = json["checks"].as_array().unwrap();
+    assert!(checks
+        .iter()
+        .any(|check| check["name"] == "plugins" && check["status"] == "pass"));
+    assert!(checks.iter().any(|check| {
+        check["name"].as_str().unwrap_or_default().starts_with("uploader (demo-wasm)")
+    }));
 }
 
 #[test]

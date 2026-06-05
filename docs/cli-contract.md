@@ -197,9 +197,9 @@ even when dry-run / report mode is used.
 
 ## `zpic doctor`
 
-Run local diagnostic checks for config discovery, PicGo fallback, the
-active uploader's credentials, clipboard availability, and the
-history-store writability.
+Run local diagnostic checks for config discovery, PicGo fallback,
+plugin discovery, the active uploader's credentials or plugin
+validation, clipboard availability, and the history-store writability.
 
 ```bash
 zpic doctor
@@ -312,7 +312,8 @@ Returns exit code `0` on success. Errors include:
 
 - `ConfigNotFound` — no PicGo file at the resolved path.
 - `UploaderUnsupported` — the active PicGo uploader is provided by a
-  Node plugin with no native `zpic` implementation.
+  PicGo plugin that has no corresponding built-in or installed `zpic`
+  uploader implementation.
 - `ConfigInvalid` — the destination already exists or the source is
   unreadable.
 

@@ -141,7 +141,7 @@ impl S3Uploader {
 
 #[async_trait]
 impl Uploader for S3Uploader {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "s3"
     }
 

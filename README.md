@@ -14,6 +14,7 @@ crates/
 ├── zpic-config/      # zpic TOML config + PicGo compatibility layer
 ├── zpic-image/       # MIME/dimension/hash + path template rendering
 ├── zpic-history/     # SQLite-backed upload history
+├── zpic-plugins/     # plugin manifests, discovery, registry, and WASM runtime
 ├── zpic-uploaders/   # local, GitHub, and S3-compatible uploaders
 └── zpic-cli/         # the `zpic` binary
 ```
@@ -109,6 +110,23 @@ The native TOML mirrors PicGo's uploader manager model:
 See [`examples/local/config.toml`](examples/local/config.toml) for a
 minimal PicGo-compatible native config.
 
+## Plugins
+
+`zpic` supports uploader plugins through a `zpic`-native WASM plugin
+system. Plugins are discovered from:
+
+1. `ZPIC_PLUGIN_DIRS` (path-separated list, highest priority)
+2. `<cwd>/.zpic/plugins`
+3. the user-global plugin directory resolved by `directories`
+
+Each plugin lives in its own directory and includes:
+
+- `plugin.toml` — plugin metadata and uploader field schema
+- `plugin.wasm` — the WASM module executed by `zpic`
+
+Plugin uploader configs use the same native config shape as built-in
+uploaders: `uploader.<type>.configList`.
+
 ## Compatibility
 
 zpic understands PicGo's `picBed` plus `uploader.<type>.configList`
@@ -118,9 +136,10 @@ layout and supports the following built-in uploaders out of the box:
 - `github` — upload to a GitHub repo via the contents API
 - `s3` — upload to any S3-compatible endpoint (R2, MinIO, B2, S3)
 
-zpic does **not** run PicGo Node plugins. When a PicGo uploader is only
-available through a plugin, `zpic` reports an actionable error and
-points the user at a supported alternative.
+PicGo compatibility is limited to configuration compatibility. `zpic`
+does **not** run PicGo Node plugins or emulate PicGo's plugin commands.
+If a PicGo config references a plugin uploader, `zpic` can use it only
+when a corresponding `zpic` uploader plugin is installed locally.
 
 Existing legacy zpic configs that still use `default_uploader` and
 `[uploaders.<name>]` are auto-migrated in memory on load. The next save
@@ -164,5 +183,6 @@ See [`docs/zed-integration.md`](docs/zed-integration.md) for details.
 ## Status
 
 This is the v0.1 foundation release with PicGo-compatible uploader
-multi-config management. See `openspec/specs/` for the current tracked
+multi-config management plus the first cut of `zpic`-native WASM
+uploader plugins. See `openspec/specs/` for the current tracked
 contract.

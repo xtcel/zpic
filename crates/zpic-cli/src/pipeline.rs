@@ -7,7 +7,6 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 use zpic_config::loader::LoadedConfig;
-use zpic_config::UploaderSection;
 use zpic_core::config::ZpicConfig as ZpicConfigTrait;
 use zpic_core::error::{Result, ZpicError};
 use zpic_core::format::{render_format_for_kind, FormatVars};
@@ -17,7 +16,6 @@ use zpic_core::upload::{
 use zpic_image::{
     content_hash_hex, detect_mime, read_dimensions, render_template, TemplateContext,
 };
-use zpic_uploaders::build_uploader;
 
 /// A clipboard image as captured by `arboard`.
 pub struct ClipboardImage {
@@ -72,21 +70,13 @@ impl PendingUpload {
     }
 }
 
-/// Build a concrete uploader from a config section. Wraps the factory so
-/// commands don't need to know the concrete types.
-pub fn build_active_uploader(name: &str, section: &UploaderSection) -> Result<Box<dyn Uploader>> {
-    build_uploader(name, section)
-}
-
 /// Load a file, render the target key, and run the upload.
 pub async fn run_upload(
-    config: &LoadedConfig,
-    uploader_name: &str,
-    section: &UploaderSection,
+    config: &zpic_config::loader::LoadedConfig,
+    uploader: &dyn Uploader,
     pending: PendingUpload,
     dry_run: bool,
 ) -> Result<UploadOutput> {
-    let uploader = build_active_uploader(uploader_name, section)?;
     let template = config.zpic.rename.effective_template();
     let hash_hex = content_hash_hex(&pending.bytes);
     let (file_name_for_template, ext) = split_name_ext(&pending.file_name);

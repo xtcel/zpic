@@ -23,6 +23,7 @@ zpic-core = { workspace = true }
 zpic-config = { workspace = true }
 zpic-image = { workspace = true }
 zpic-history = { workspace = true }
+zpic-plugins = { workspace = true }
 zpic-uploaders = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }

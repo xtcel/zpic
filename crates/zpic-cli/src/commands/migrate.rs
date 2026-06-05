@@ -7,7 +7,7 @@ use crate::cli::MigrateArgs;
 use crate::migrate::{scan_markdown, PlannedChange};
 use crate::output::UploadPayload;
 use crate::pipeline::{self, PendingUpload};
-use crate::util::{load_config, resolve_uploader};
+use crate::util::{load_config, load_uploader_registry, resolve_uploader};
 use serde::Serialize;
 use zpic_core::config::OutputFormat;
 use zpic_core::error::{Result, ZpicError};
@@ -15,7 +15,9 @@ use zpic_core::upload::UploadItem;
 
 pub async fn run(args: MigrateArgs, explicit_config: Option<PathBuf>, json: bool) -> Result<i32> {
     let config = load_config(explicit_config.as_deref())?;
-    let (uploader_name, section) = resolve_uploader(&config, args.uploader.as_deref())?;
+    let loaded_registry = load_uploader_registry()?;
+    let resolved = resolve_uploader(&config, &loaded_registry.registry, args.uploader.as_deref())?;
+    let uploader = resolved.instantiate()?;
 
     let files = collect_markdown_files(&args.path, args.recursive)?;
     if files.is_empty() {
@@ -27,7 +29,7 @@ pub async fn run(args: MigrateArgs, explicit_config: Option<PathBuf>, json: bool
 
     let mut report = MigrateReport::default();
     for file in files {
-        process_file(&file, &config, &uploader_name, &section, &args, &mut report).await?;
+        process_file(&file, &config, uploader.as_ref(), &args, &mut report).await?;
     }
 
     if let Some(path) = &args.report {
@@ -78,8 +80,7 @@ struct ChangeRecord {
 async fn process_file(
     file: &Path,
     config: &zpic_config::loader::LoadedConfig,
-    uploader_name: &str,
-    section: &zpic_config::UploaderSection,
+    uploader: &dyn zpic_core::upload::Uploader,
     args: &MigrateArgs,
     report: &mut MigrateReport,
 ) -> Result<()> {
@@ -105,7 +106,7 @@ async fn process_file(
             continue;
         }
         let pending = PendingUpload::from_path(&img.resolved)?;
-        match pipeline::run_upload(config, uploader_name, section, pending, args.dry_run).await {
+        match pipeline::run_upload(config, uploader, pending, args.dry_run).await {
             Ok(out) => {
                 let format = args
                     .format
