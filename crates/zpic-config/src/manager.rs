@@ -107,11 +107,7 @@ impl<'a> UploaderConfigManager<'a> {
                 .map(str::trim)
                 .filter(|name| !name.is_empty())
                 .unwrap_or("Default");
-            return self.create_or_update(
-                uploader_type,
-                Some(placeholder_name),
-                BTreeMap::new(),
-            );
+            return self.create_or_update(uploader_type, Some(placeholder_name), BTreeMap::new());
         }
         let target_id = if let Some(name) = config_name {
             let target = store
@@ -510,23 +506,20 @@ mod tests {
     }
 
     #[test]
-    fn create_or_update_rejects_duplicate_name_when_no_fields() {
+    fn create_or_update_updates_existing_name_even_with_empty_fields() {
         let mut cfg = empty_cfg();
         add_local_type(&mut cfg);
         let mut mgr = UploaderConfigManager::new(&mut cfg);
-        // First create a config without any fields (an empty stub).
         let mut fields = BTreeMap::new();
         fields.insert("type".into(), toml::Value::String("github".into()));
         mgr.create_or_update("github", Some("Personal"), fields)
             .unwrap();
-        // Now try to create a second config with a different case of the
-        // same name. The lookup is case-insensitive, so this matches the
-        // existing config. We have no new fields, so it's a duplicate.
         let empty: BTreeMap<String, toml::Value> = BTreeMap::new();
-        let err = mgr
+        let item = mgr
             .create_or_update("github", Some("personal"), empty)
-            .unwrap_err();
-        assert!(matches!(err, ZpicError::ConfigInvalid(_)));
+            .unwrap();
+        assert_eq!(item.config_name, "Personal");
+        assert_eq!(mgr.list_configs("github").len(), 1);
     }
 
     #[test]
@@ -543,6 +536,18 @@ mod tests {
         let active = mgr.use_config("local", Some("Default")).unwrap();
         assert_eq!(active.config_name, "Default");
         assert_eq!(cfg.pic_bed.current.as_deref(), Some("local"));
+    }
+
+    #[test]
+    fn use_config_creates_placeholder_when_type_has_no_configs() {
+        let mut cfg = empty_cfg();
+        cfg.uploader
+            .insert("github".into(), UploaderTypeConfigs::default());
+        let mut mgr = UploaderConfigManager::new(&mut cfg);
+        let active = mgr.use_config("github", Some("Work")).unwrap();
+        assert_eq!(active.config_name, "Work");
+        assert_eq!(mgr.list_configs("github").len(), 1);
+        assert_eq!(cfg.pic_bed.current.as_deref(), Some("github"));
     }
 
     #[test]

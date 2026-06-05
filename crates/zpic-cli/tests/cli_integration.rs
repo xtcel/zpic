@@ -430,8 +430,8 @@ fn set_uploader_guided_mode_prompts_for_type_and_fields() {
         use std::io::Write;
         let stdin = child.stdin.as_mut().expect("stdin available");
         writeln!(stdin, "1").unwrap();
+        writeln!(stdin, "1").unwrap();
         writeln!(stdin, "Guided").unwrap();
-        writeln!(stdin).unwrap();
         writeln!(stdin, "{}", target.display()).unwrap();
         writeln!(stdin, "/guided").unwrap();
     }
@@ -450,6 +450,82 @@ fn set_uploader_guided_mode_prompts_for_type_and_fields() {
     assert!(contents.contains("_configName = \"Guided\""));
     assert!(contents.contains(&format!("target_dir = \"{}\"", target.display())));
     assert!(contents.contains("public_base_url = \"/guided\""));
+}
+
+#[test]
+fn set_uploader_guided_mode_can_update_existing_config() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("public");
+    write_picgo_compat_config(&dir, &target);
+    let config = dir.path().join("config.toml");
+
+    let mut child = Command::new(zpic_bin())
+        .args(["--config", config.to_str().unwrap(), "set", "uploader"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("zpic runs");
+
+    {
+        use std::io::Write;
+        let stdin = child.stdin.as_mut().expect("stdin available");
+        writeln!(stdin, "1").unwrap();
+        writeln!(stdin, "3").unwrap();
+        writeln!(stdin).unwrap();
+        writeln!(stdin, "/backup-updated").unwrap();
+    }
+
+    let out = child.wait_with_output().expect("waits");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let contents = std::fs::read_to_string(&config).unwrap();
+    assert_eq!(contents.matches("_configName = \"Backup\"").count(), 1);
+    assert!(contents.contains("public_base_url = \"/backup-updated\""));
+}
+
+#[test]
+fn set_uploader_github_normalizes_picgo_field_aliases() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("public");
+    write_config(&dir, &target);
+    let config = dir.path().join("config.toml");
+
+    let out = Command::new(zpic_bin())
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "set",
+            "uploader",
+            "github",
+            "Work",
+            "--field",
+            "repo=me/picbed",
+            "--field",
+            "token=ghp_x",
+            "--field",
+            "branch=master",
+            "--field",
+            "path=img/",
+            "--field",
+            "customUrl=https://cdn.example.com",
+        ])
+        .output()
+        .expect("zpic runs");
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let contents = std::fs::read_to_string(&config).unwrap();
+    assert!(contents.contains("_configName = \"Work\""));
+    assert!(contents.contains("path_prefix = \"img/\""));
+    assert!(contents.contains("public_base_url = \"https://cdn.example.com\""));
 }
 
 #[test]

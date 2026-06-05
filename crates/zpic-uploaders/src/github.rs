@@ -6,6 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::Engine;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
+use serde::Deserialize;
 use serde_json::json;
 
 use zpic_config::UploaderSection;
@@ -21,6 +22,7 @@ pub struct GitHubUploader {
     branch: String,
     token: String,
     public_base_url: String,
+    path_prefix: String,
     client: reqwest::Client,
 }
 
@@ -36,7 +38,7 @@ impl GitHubUploader {
         let branch = {
             let v = section.string_field("branch");
             if v.is_empty() {
-                "main".to_string()
+                "master".to_string()
             } else {
                 v
             }
@@ -48,15 +50,19 @@ impl GitHubUploader {
             ));
         }
         let public_base_url = section
-            .string_field("public_base_url")
+            .field("public_base_url")
+            .or_else(|| section.field("customUrl"))
+            .unwrap_or_default()
             .trim()
             .trim_end_matches('/')
             .to_string();
-        if public_base_url.is_empty() {
-            return Err(ZpicError::ConfigInvalid(
-                "github uploader requires `public_base_url`".into(),
-            ));
-        }
+        let path_prefix = section
+            .field("path_prefix")
+            .or_else(|| section.field("path"))
+            .unwrap_or_default()
+            .trim()
+            .trim_matches('/')
+            .to_string();
         let client = reqwest::Client::builder()
             .user_agent(DEFAULT_USER_AGENT)
             .build()
@@ -66,6 +72,7 @@ impl GitHubUploader {
             branch,
             token,
             public_base_url,
+            path_prefix,
             client,
         })
     }
@@ -91,19 +98,30 @@ impl GitHubUploader {
             branch: branch.into(),
             token,
             public_base_url: public_base_url.into(),
+            path_prefix: String::new(),
             client,
         })
     }
 
-    fn build_url(&self, key: &str) -> String {
+    fn storage_key(&self, key: &str) -> String {
         let key = key.trim_start_matches('/');
-        if self.public_base_url.is_empty() {
+        if self.path_prefix.is_empty() {
             return key.to_string();
         }
+        format!("{}/{}", self.path_prefix, key)
+    }
+
+    fn build_url(&self, key: &str) -> String {
+        let key = self.storage_key(key);
         if self.public_base_url.ends_with('/') {
             format!("{}{}", self.public_base_url, key)
-        } else {
+        } else if !self.public_base_url.is_empty() {
             format!("{}/{}", self.public_base_url, key)
+        } else {
+            format!(
+                "https://raw.githubusercontent.com/{}/{}/{}",
+                self.repo, self.branch, key
+            )
         }
     }
 
@@ -111,8 +129,16 @@ impl GitHubUploader {
         format!(
             "https://api.github.com/repos/{}/contents/{}",
             self.repo,
-            key.trim_start_matches('/')
+            self.storage_key(key)
         )
+    }
+
+    fn output_url(&self, key: &str, download_url: Option<String>) -> String {
+        if self.public_base_url.is_empty() {
+            download_url.unwrap_or_else(|| self.build_url(key))
+        } else {
+            self.build_url(key)
+        }
     }
 
     fn auth_headers(&self) -> HeaderMap {
@@ -140,12 +166,13 @@ impl Uploader for GitHubUploader {
     }
 
     async fn upload(&self, req: UploadRequest) -> Result<UploadOutput> {
+        let storage_key = self.storage_key(&req.context.target_key);
         let url = self.build_url(&req.context.target_key);
         if req.context.dry_run {
             return Ok(UploadOutput {
                 source: req.input.source_path.to_string_lossy().into_owned(),
                 url: url.clone(),
-                key: req.context.target_key,
+                key: storage_key,
                 markdown: format!("![{}]({})", req.input.file_name, url),
                 mime: req.input.mime,
                 size: req.input.size,
@@ -187,20 +214,36 @@ impl Uploader for GitHubUploader {
                 )));
             }
             if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-                return Err(ZpicError::UploadFailed(format!(
-                    "github: validation failed: {}",
-                    body
-                )));
+                let url = self.build_url(&req.context.target_key);
+                return Ok(UploadOutput {
+                    source: req.input.source_path.to_string_lossy().into_owned(),
+                    url: url.clone(),
+                    key: storage_key,
+                    markdown: format!("![{}]({})", req.input.file_name, url),
+                    mime: req.input.mime,
+                    size: req.input.size,
+                    width: None,
+                    height: None,
+                    uploader: self.name().to_string(),
+                });
             }
             return Err(ZpicError::UploadFailed(format!(
                 "github: HTTP {}: {}",
                 status, body
             )));
         }
+        let body: GitHubContentResponse = resp
+            .json()
+            .await
+            .map_err(|e| ZpicError::UploadFailed(format!("github: invalid response: {e}")))?;
+        let url = self.output_url(
+            &req.context.target_key,
+            body.content.and_then(|content| content.download_url),
+        );
         Ok(UploadOutput {
             source: req.input.source_path.to_string_lossy().into_owned(),
             url: url.clone(),
-            key: req.context.target_key,
+            key: storage_key,
             markdown: format!("![{}]({})", req.input.file_name, url),
             mime: req.input.mime,
             size: req.input.size,
@@ -214,6 +257,18 @@ impl Uploader for GitHubUploader {
 #[allow(dead_code)]
 fn _force_arc<T>(t: T) -> Arc<T> {
     Arc::new(t)
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubContentResponse {
+    #[serde(default)]
+    content: Option<GitHubContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubContent {
+    #[serde(default)]
+    download_url: Option<String>,
 }
 
 #[cfg(test)]
@@ -236,13 +291,46 @@ mod tests {
     }
 
     #[test]
-    fn missing_token_rejected() {
+    fn build_url_falls_back_to_raw_github_when_custom_url_missing() {
+        let u = GitHubUploader::new("o/r", "main", "t", "").unwrap();
+        assert_eq!(
+            u.build_url("x.png"),
+            "https://raw.githubusercontent.com/o/r/main/x.png"
+        );
+    }
+
+    #[test]
+    fn from_config_accepts_optional_custom_url_and_path_prefix() {
         let mut section_map = std::collections::BTreeMap::new();
         section_map.insert("repo".to_string(), toml::Value::String("o/r".to_string()));
         section_map.insert(
-            "public_base_url".to_string(),
-            toml::Value::String("https://x".to_string()),
+            "branch".to_string(),
+            toml::Value::String("main".to_string()),
         );
+        section_map.insert(
+            "token".to_string(),
+            toml::Value::String("ghp_x".to_string()),
+        );
+        section_map.insert(
+            "path_prefix".to_string(),
+            toml::Value::String("img/".to_string()),
+        );
+        let section = UploaderSection {
+            kind: zpic_core::config::UploaderKind::Github,
+            alias: None,
+            fields: section_map,
+        };
+        let uploader = GitHubUploader::from_config(&section).unwrap();
+        assert_eq!(
+            uploader.build_url("cover.png"),
+            "https://raw.githubusercontent.com/o/r/main/img/cover.png"
+        );
+    }
+
+    #[test]
+    fn missing_token_rejected() {
+        let mut section_map = std::collections::BTreeMap::new();
+        section_map.insert("repo".to_string(), toml::Value::String("o/r".to_string()));
         let section = UploaderSection {
             kind: zpic_core::config::UploaderKind::Github,
             alias: None,
