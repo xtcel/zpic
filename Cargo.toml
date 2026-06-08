@@ -80,12 +80,6 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# AWS S3
-aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls", "credentials-process"] }
-aws-credential-types = "1"
-aws-sdk-s3 = "1"
-aws-smithy-runtime-api = "1"
-
 # Base64
 base64 = "0.22"
 
