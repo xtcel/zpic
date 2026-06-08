@@ -15,13 +15,19 @@ pub enum UploaderKind {
     Local,
     Github,
     S3,
+    AliyunOss,
 }
 
 impl UploaderKind {
     /// All uploader kinds in declaration order. Used by the PicGo
     /// compatibility layer and the CLI help text.
-    pub fn all() -> [UploaderKind; 3] {
-        [UploaderKind::Local, UploaderKind::Github, UploaderKind::S3]
+    pub fn all() -> [UploaderKind; 4] {
+        [
+            UploaderKind::Local,
+            UploaderKind::Github,
+            UploaderKind::S3,
+            UploaderKind::AliyunOss,
+        ]
     }
 
     /// Stable, lowercase name used in CLI flags and config files.
@@ -30,6 +36,7 @@ impl UploaderKind {
             UploaderKind::Local => "local",
             UploaderKind::Github => "github",
             UploaderKind::S3 => "s3",
+            UploaderKind::AliyunOss => "aliyun-oss",
         }
     }
 
@@ -39,6 +46,7 @@ impl UploaderKind {
             UploaderKind::Local => &["local"],
             UploaderKind::Github => &["github"],
             UploaderKind::S3 => &["s3", "aws-s3", "r2"],
+            UploaderKind::AliyunOss => &["aliyun-oss", "oss", "aliyun"],
         }
     }
 

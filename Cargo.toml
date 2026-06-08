@@ -59,6 +59,7 @@ bytes = "1"
 # Hashing
 blake3 = "1"
 hex = "0.4"
+hmac = "0.12"
 
 # Image / mime
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp", "bmp"] }

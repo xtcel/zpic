@@ -79,7 +79,7 @@ impl ZpicError {
                 "Create it with `zpic set uploader <type> <name>` or switch to an existing one with `zpic use uploader <type> <name>`.",
             ),
             ZpicError::UploaderUnsupported(_) => Some(
-                "Switch to a built-in uploader (local, github, s3) or import a supported PicGo config.",
+                "Switch to a built-in uploader (local, github, s3, aliyun-oss) or import a supported PicGo config.",
             ),
             ZpicError::AuthMissing(_) => Some(
                 "Provide the credential as an environment variable or in the config file.",

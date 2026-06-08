@@ -12,6 +12,7 @@ use zpic_core::upload::Uploader;
 
 use crate::github::GitHubUploader;
 use crate::local::LocalUploader;
+use crate::oss::OssUploader;
 use crate::s3::S3Uploader;
 
 /// Convenience trait that exposes the same `from_config` constructor for
@@ -40,12 +41,19 @@ impl UploaderFactory for S3Uploader {
     }
 }
 
+impl UploaderFactory for OssUploader {
+    fn from_section(section: &UploaderSection) -> Result<Self> {
+        Self::from_config(section)
+    }
+}
+
 /// Build a boxed `Uploader` from a config section, dispatching on `kind`.
 pub fn build_uploader(_name: &str, section: &UploaderSection) -> Result<Box<dyn Uploader>> {
     let uploader: Box<dyn Uploader> = match section.kind {
         UploaderKind::Local => Box::new(LocalUploader::from_section(section)?),
         UploaderKind::Github => Box::new(GitHubUploader::from_section(section)?),
         UploaderKind::S3 => Box::new(S3Uploader::from_section(section)?),
+        UploaderKind::AliyunOss => Box::new(OssUploader::from_section(section)?),
     };
     Ok(uploader)
 }
@@ -56,6 +64,7 @@ pub fn name_for_kind(kind: UploaderKind) -> &'static str {
         UploaderKind::Local => "local",
         UploaderKind::Github => "github",
         UploaderKind::S3 => "s3",
+        UploaderKind::AliyunOss => "aliyun-oss",
     }
 }
 

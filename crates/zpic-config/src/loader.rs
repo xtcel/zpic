@@ -377,6 +377,13 @@ fn default_import_name(active: &str, kind: Option<UploaderKind>) -> String {
                 active.to_string()
             }
         }
+        Some(UploaderKind::AliyunOss) => {
+            if active.eq_ignore_ascii_case("aliyun-oss") || active.eq_ignore_ascii_case("oss") {
+                "Default".to_string()
+            } else {
+                active.to_string()
+            }
+        }
         None => "Default".to_string(),
     }
 }

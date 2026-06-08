@@ -2,9 +2,9 @@
 
 A Rust-native image hosting CLI compatible with PicGo configuration. zpic
 ships a single binary, `zpic`, that uploads images to local filesystems,
-GitHub repositories, and S3-compatible object storage (Cloudflare R2, AWS
-S3, MinIO, Backblaze B2, ...), with optional Markdown migration, upload
-history, and `doctor` diagnostics.
+GitHub repositories, S3-compatible object storage (Cloudflare R2, AWS S3,
+MinIO, Backblaze B2, ...), and Aliyun OSS, with optional Markdown
+migration, upload history, and `doctor` diagnostics.
 
 ## Workspace layout
 
@@ -15,7 +15,7 @@ crates/
 ├── zpic-image/       # MIME/dimension/hash + path template rendering
 ├── zpic-history/     # SQLite-backed upload history
 ├── zpic-plugins/     # plugin manifests, discovery, registry, and WASM runtime
-├── zpic-uploaders/   # local, GitHub, and S3-compatible uploaders
+├── zpic-uploaders/   # local, GitHub, S3-compatible, and Aliyun OSS uploaders
 └── zpic-cli/         # the `zpic` binary
 ```
 
@@ -135,6 +135,8 @@ layout and supports the following built-in uploaders out of the box:
 - `local` — copy to a local directory
 - `github` — upload to a GitHub repo via the contents API
 - `s3` — upload to any S3-compatible endpoint (R2, MinIO, B2, S3)
+- `aliyun-oss` — upload to Aliyun OSS using the V4 (HMAC-SHA256) signature
+  (PicGo `aliyun` config is also recognized)
 
 PicGo compatibility is limited to configuration compatibility. `zpic`
 does **not** run PicGo Node plugins or emulate PicGo's plugin commands.
@@ -186,3 +188,4 @@ This is the v0.1 foundation release with PicGo-compatible uploader
 multi-config management plus the first cut of `zpic`-native WASM
 uploader plugins. See `openspec/specs/` for the current tracked
 contract.
+  

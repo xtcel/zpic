@@ -6,6 +6,7 @@ use zpic_plugins::{builtin_uploader_descriptor, UploaderDescriptor, UploaderFiel
 
 use crate::github::GitHubUploader;
 use crate::local::LocalUploader;
+use crate::oss::OssUploader;
 use crate::s3::S3Uploader;
 
 pub fn builtin_uploader_descriptors() -> Vec<UploaderDescriptor> {
@@ -30,7 +31,13 @@ pub fn builtin_uploader_descriptors() -> Vec<UploaderDescriptor> {
                 field("branch", "Branch", true, false, Some("master")),
                 field("token", "GitHub token", true, true, None),
                 field("path_prefix", "Path prefix", false, false, None),
-                field("public_base_url", "Custom public base URL", false, false, None),
+                field(
+                    "public_base_url",
+                    "Custom public base URL",
+                    false,
+                    false,
+                    None,
+                ),
             ],
             instantiate_github,
             validate_github,
@@ -51,6 +58,29 @@ pub fn builtin_uploader_descriptors() -> Vec<UploaderDescriptor> {
             ],
             instantiate_s3,
             validate_s3,
+        ),
+        builtin_uploader_descriptor(
+            "aliyun-oss",
+            "aliyun-oss",
+            vec!["aliyun-oss".into(), "oss".into(), "aliyun".into()],
+            vec![
+                field("region", "Region (e.g. oss-cn-hangzhou)", true, false, None),
+                field("bucket", "Bucket", true, false, None),
+                field(
+                    "endpoint",
+                    "Custom endpoint (VPC/internal)",
+                    false,
+                    false,
+                    None,
+                ),
+                field("access_key_id", "AccessKeyId", true, false, None),
+                field("access_key_secret", "AccessKeySecret", true, true, None),
+                field("public_base_url", "Public base URL", false, false, None),
+                field("cache_control", "Cache-Control", false, false, None),
+                field("acl", "Object ACL", false, false, None),
+            ],
+            instantiate_oss,
+            validate_oss,
         ),
     ]
 }
@@ -81,10 +111,7 @@ fn validate_local(uploader_type: &str, item: &UploaderConfigItem) -> Result<()> 
     LocalUploader::from_config(&section).map(|_| ())
 }
 
-fn instantiate_github(
-    uploader_type: &str,
-    item: &UploaderConfigItem,
-) -> Result<Box<dyn Uploader>> {
+fn instantiate_github(uploader_type: &str, item: &UploaderConfigItem) -> Result<Box<dyn Uploader>> {
     let section = builtin_section(item, uploader_type, UploaderKind::Github)?;
     Ok(Box::new(GitHubUploader::from_config(&section)?))
 }
@@ -102,6 +129,16 @@ fn instantiate_s3(uploader_type: &str, item: &UploaderConfigItem) -> Result<Box<
 fn validate_s3(uploader_type: &str, item: &UploaderConfigItem) -> Result<()> {
     let section = builtin_section(item, uploader_type, UploaderKind::S3)?;
     S3Uploader::from_config(&section).map(|_| ())
+}
+
+fn instantiate_oss(uploader_type: &str, item: &UploaderConfigItem) -> Result<Box<dyn Uploader>> {
+    let section = builtin_section(item, uploader_type, UploaderKind::AliyunOss)?;
+    Ok(Box::new(OssUploader::from_config(&section)?))
+}
+
+fn validate_oss(uploader_type: &str, item: &UploaderConfigItem) -> Result<()> {
+    let section = builtin_section(item, uploader_type, UploaderKind::AliyunOss)?;
+    OssUploader::from_config(&section).map(|_| ())
 }
 
 fn builtin_section(
