@@ -4,6 +4,7 @@ pub mod config;
 pub mod doctor;
 pub mod history;
 pub mod migrate;
+pub mod server;
 pub mod set_cmd;
 pub mod upload;
 pub mod uploader;

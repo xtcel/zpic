@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
-use crate::commands::{config, doctor, history, migrate, set_cmd, upload, uploader, use_cmd, zed};
+use crate::commands::{
+    config, doctor, history, migrate, server, set_cmd, upload, uploader, use_cmd, zed,
+};
 use zpic_core::error::ZpicError;
 
 #[derive(Debug, Parser)]
@@ -71,6 +73,8 @@ pub enum Command {
         #[command(subcommand)]
         action: ZedAction,
     },
+    /// Run the PicGo-compatible HTTP server for editor integrations.
+    Server(server::ServerArgs),
     /// Print version information.
     Version,
 }
@@ -294,6 +298,7 @@ pub async fn run(cli: Cli) -> Result<i32, i32> {
         Command::Set { action } => set_cmd::run(action, config_path, json),
         Command::Doctor(_) => doctor::run(config_path, json),
         Command::Zed { action } => zed::run(action, json),
+        Command::Server(args) => server::run(args).await,
         Command::Version => {
             println!("zpic {}", env!("CARGO_PKG_VERSION"));
             Ok(0)

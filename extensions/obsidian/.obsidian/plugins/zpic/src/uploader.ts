@@ -91,25 +91,20 @@ export class ZpicUploader {
    * that are not yet on disk.
    */
   private async uploadMultipart(files: File[]): Promise<UploadResponse> {
-    const formData = new FormData();
-    for (const file of files) {
-      // The Electron `requestUrl` ignores `File.type` on some platforms
-      // and Obsidian on iOS leaves it empty; fall back to a guessed
-      // MIME based on the file extension so the server receives a
-      // usable Content-Type for each part.
-      const type = file.type || guessMimeType(file.name);
-      formData.append("list", file, file.name);
-      void type;
-    }
-
-    // The Obsidian typings only declare `body: string | ArrayBuffer`,
-    // but `requestUrl` does accept a `FormData` instance at runtime
-    // and generates the right multipart envelope. Cast through
-    // `unknown` so the call is type-safe without resorting to `any`.
+    // Obsidian's `requestUrl` does *not* reliably set the
+    // `Content-Type: multipart/form-data; boundary=...` header when
+    // handed a `FormData` body — on some platforms the header is
+    // dropped entirely, and the server then rejects the request as
+    // an unsupported content type. To avoid relying on that
+    // behaviour, we build the multipart body by hand, set the
+    // boundary explicitly, and ship the raw bytes with the matching
+    // header.
+    const { body, contentType } = await buildMultipartBody(files);
     const params: RequestUrlParam = {
       url: `${this.serverUrl}/upload`,
       method: "POST",
-      body: formData as unknown as string,
+      headers: { "Content-Type": contentType },
+      body: body as unknown as string,
       throw: false,
     };
     const response = await this.sendWithTimeout(params);
@@ -220,4 +215,59 @@ export class ZpicUploader {
  */
 export function showNotice(message: string, timeout = 5000): void {
   new Notice(message, timeout);
+}
+
+/**
+ * Build a `multipart/form-data` envelope around the given files and
+ * return the body as a `Uint8Array` plus the matching Content-Type
+ * header (with a freshly-generated boundary). The boundary is
+ * chosen at request time so concurrent uploads never collide.
+ *
+ * We do this by hand because Obsidian's `requestUrl` does not
+ * reliably set the Content-Type when given a `FormData` body. The
+ * resulting bytes are RFC 7578 compliant: ASCII headers around
+ * each part, CRLF separators, and a `--<boundary>--` terminator.
+ */
+export async function buildMultipartBody(
+  files: File[],
+): Promise<{ body: Uint8Array; contentType: string }> {
+  // Boundary rule: 1-70 chars, no spaces, no special characters
+  // that would require quoting. We mix a timestamp and two random
+  // base-36 segments to keep the boundary unique per request.
+  const boundary =
+    `----zpic-${Date.now().toString(36)}` +
+    `-${Math.random().toString(36).slice(2, 10)}`;
+
+  const encoder = new TextEncoder();
+  const parts: Uint8Array[] = [];
+
+  for (const file of files) {
+    const safeName = file.name.replace(/[\r\n"]/g, "_");
+    const fileType = file.type || guessMimeType(file.name);
+    const header =
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="list"; filename="${safeName}"\r\n` +
+      `Content-Type: ${fileType}\r\n\r\n`;
+    parts.push(encoder.encode(header));
+    parts.push(new Uint8Array(await file.arrayBuffer()));
+    parts.push(encoder.encode("\r\n"));
+  }
+  // Closing boundary: same prefix as the part delimiter, then
+  // an extra `--`.
+  parts.push(encoder.encode(`--${boundary}--\r\n`));
+
+  // Concatenate every chunk into one buffer. Using `set` in a
+  // single pass is roughly O(total) and avoids a quadratic copy.
+  const total = parts.reduce((sum, p) => sum + p.byteLength, 0);
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    body.set(part, offset);
+    offset += part.byteLength;
+  }
+
+  return {
+    body,
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
 }

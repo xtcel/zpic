@@ -6,4 +6,5 @@ pub mod doctor;
 pub mod migrate;
 pub mod output;
 pub mod pipeline;
+pub mod server;
 pub mod util;

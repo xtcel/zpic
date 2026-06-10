@@ -7,6 +7,24 @@ and the project adheres to [Semantic Versioning][semver].
 [keep-a-changelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
 
+## [0.1.1] — 2026-06-09
+
+### Fixed
+
+- **Drag-and-drop uploads were rejected with `unsupported content type`**
+  on Obsidian desktop and mobile. Obsidian's `requestUrl` does not
+  reliably set the `Content-Type: multipart/form-data; boundary=…`
+  header when handed a `FormData` body, so the server had no way to
+  tell which parser to dispatch to.
+
+  The plugin now serialises the multipart envelope by hand
+  (`buildMultipartBody` in `src/uploader.ts`) and sets the
+  `Content-Type` header explicitly. As a defence-in-depth measure,
+  the Rust server has also been taught to **sniff the body** when the
+  `Content-Type` header is missing and dispatch to multipart or JSON
+  based on the leading bytes — see the server `CHANGELOG.md` for the
+  matching change.
+
 ## [0.1.0] — 2026-06-09
 
 ### Added
