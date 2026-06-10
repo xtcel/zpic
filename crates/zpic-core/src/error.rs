@@ -89,7 +89,8 @@ impl ZpicError {
             ),
             ZpicError::FileNotFound(_) => Some("Check that the file path exists and is readable."),
             ZpicError::UnsupportedFileType(_) => Some(
-                "zpic only uploads image files (png, jpg, jpeg, gif, webp, bmp, svg, tiff).",
+                "zpic uploads images (png, jpg, jpeg, gif, webp, bmp, svg, tiff, avif), \
+                 audio (mp3, flac, wav, ogg, m4a, 3gp), and video (mp4, webm, ogv).",
             ),
             ZpicError::Clipboard(_) => Some(
                 "Copy an image to the clipboard before running `zpic upload --clipboard`.",

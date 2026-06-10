@@ -23,7 +23,7 @@ path = "src/main.rs"
 [dependencies]
 zpic-core = { workspace = true }
 zpic-config = { workspace = true }
-zpic-image = { workspace = true }
+zpic-media = { workspace = true }
 zpic-history = { workspace = true }
 zpic-plugins = { workspace = true }
 zpic-uploaders = { workspace = true }

@@ -12,7 +12,7 @@ migration, upload history, and `doctor` diagnostics.
 crates/
 ├── zpic-core/        # data models, error types, uploader trait, formatters
 ├── zpic-config/      # zpic TOML config + PicGo compatibility layer
-├── zpic-image/       # MIME/dimension/hash + path template rendering
+├── zpic-media/       # MIME/dimension/hash + path template rendering (image, audio, video)
 ├── zpic-history/     # SQLite-backed upload history
 ├── zpic-plugins/     # plugin manifests, discovery, registry, and WASM runtime
 ├── zpic-uploaders/   # local, GitHub, S3-compatible, and Aliyun OSS uploaders

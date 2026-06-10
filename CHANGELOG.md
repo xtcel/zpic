@@ -11,6 +11,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Crate renamed: `zpic-image` → `zpic-media`.** The crate's responsibility
+  has always been media-agnostic (MIME detection, content hashing, path
+  templating); the new name reflects that. The directory under `crates/`,
+  the `Cargo.toml` workspace member, and every internal `use` statement
+  are updated. **Breaking** for downstream consumers depending on the
+  Rust crate by name.
+- **`zpic` server now accepts audio and video uploads.** New MIME
+  detection entries cover `mp3`, `flac`, `wav`, `ogg`/`oga`, `m4a`,
+  `3gp`, `mp4`, `webm`, and `ogv` (in addition to the existing image
+  formats). The `MEDIA_EXTENSIONS` allow-list replaces the previous
+  image-only constant; the JSON path under `/upload` enforces it.
+- **HTML and JSX output formats now pick the right tag per media kind.**
+  Images render as `<img>` / `<Image>` (unchanged), audio as
+  `<audio controls>`, video as `<video controls>`. Markdown output
+  remains format-agnostic — `![alt](url)` works for everything; users
+  who want media-specific Markdown can pass a `--format` custom
+  template.
+- **Removed unused `mime_guess` dependency.** The crate was declared in
+  the workspace `Cargo.toml` but never used — MIME detection is handled
+  by `infer` plus a small extension table in `zpic-media`. Removing it
+  drops a handful of transitive crates from the build.
+
+### Obsidian plugin
+
+- The plugin's `MEDIA_EXTENSIONS` allow-list (renamed from
+  `IMAGE_EXTENSIONS`) now includes audio and video formats, mirroring
+  the Rust server. The `guessMimeType` helper covers the same set of
+  extensions.
+
 ## [0.1.2] - 2026-06-10
 
 ### Fixed

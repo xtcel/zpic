@@ -17,7 +17,7 @@ use chrono::Utc;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, info, instrument, warn};
 
-use zpic_image::detect_mime;
+use zpic_media::detect_mime;
 
 use crate::pipeline::{run_upload, PendingUpload};
 
@@ -34,9 +34,19 @@ const MAX_PART_BYTES: usize = 25 * 1024 * 1024;
 
 /// Extension allow-list, mirrored from the Obsidian plugin and the
 /// proposal spec. Centralised here so the server and the client agree
-/// on what counts as "an image".
-const IMAGE_EXTENSIONS: &[&str] = &[
+/// on what counts as "uploadable media".
+///
+/// Covers images, audio, and video. `webm` appears in both the audio and
+/// video categories upstream but is only listed once here — content-based
+/// MIME detection picks the right `audio/webm` vs `video/webm` at the
+/// uploader boundary.
+const MEDIA_EXTENSIONS: &[&str] = &[
+    // images
     "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "svg", "avif",
+    // audio
+    "mp3", "flac", "wav", "ogg", "oga", "m4a", "3gp",
+    // video
+    "mp4", "webm", "ogv",
 ];
 
 // ---------------------------------------------------------------------
@@ -327,7 +337,7 @@ async fn handle_json(state: &AppState, body: &Bytes) -> ServerResult<UploadRespo
             .and_then(|s| s.to_str())
             .map(|s| {
                 let lower = s.to_ascii_lowercase();
-                IMAGE_EXTENSIONS.contains(&lower.as_str())
+                MEDIA_EXTENSIONS.contains(&lower.as_str())
             })
             .unwrap_or(false);
         if !ext_ok {

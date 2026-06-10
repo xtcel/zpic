@@ -1,5 +1,5 @@
 [package]
-name = "zpic-image"
+name = "zpic-media"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,9 +8,9 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
-description = "Image metadata, hashing, and path templating utilities for zpic."
+description = "Media metadata, hashing, and path templating utilities for zpic (image, audio, video)."
 categories = ["multimedia", "api-bindings"]
-keywords = ["image-hosting", "picgo", "zpic", "image"]
+keywords = ["image-hosting", "zpic", "image", "audio", "video"]
 
 [dependencies]
 bytes = { workspace = true }

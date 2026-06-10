@@ -1,4 +1,4 @@
-//! MIME type and dimension detection for image files.
+//! MIME type and dimension detection for media files (image, audio, video).
 
 use std::path::Path;
 
@@ -20,16 +20,24 @@ pub fn detect_mime(bytes: &[u8], path: Option<&Path>) -> String {
         return kind.mime_type().to_string();
     }
     if let Some(p) = path {
-        if let Some(guess) = mime_guess_fallback(p) {
+        if let Some(guess) = mime_from_extension(p) {
             return guess;
         }
     }
     "application/octet-stream".to_string()
 }
 
-fn mime_guess_fallback(path: &Path) -> Option<String> {
+/// Fallback MIME lookup by file extension. Used when content-based
+/// detection (`infer`) cannot identify the bytes (e.g. plain SVG, MP4
+/// variants with unusual atoms, very small files).
+///
+/// Covers the union of formats zpic is willing to upload: raster images,
+/// SVG, audio (mp3 / flac / wav / ogg / m4a / 3gp), and video (mp4 / webm
+/// / ogv).
+fn mime_from_extension(path: &Path) -> Option<String> {
     let ext = path.extension()?.to_str()?.to_lowercase();
     let mime = match ext.as_str() {
+        // Raster + vector images
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
@@ -39,6 +47,17 @@ fn mime_guess_fallback(path: &Path) -> Option<String> {
         "tiff" | "tif" => "image/tiff",
         "heic" => "image/heic",
         "avif" => "image/avif",
+        // Audio
+        "mp3" => "audio/mpeg",
+        "flac" => "audio/flac",
+        "wav" => "audio/wav",
+        "ogg" | "oga" => "audio/ogg",
+        "m4a" => "audio/mp4",
+        "3gp" => "audio/3gpp",
+        // Video (webm is shared with audio; ogv is the video variant of ogg)
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "ogv" => "video/ogg",
         _ => return None,
     };
     Some(mime.to_string())
@@ -46,7 +65,7 @@ fn mime_guess_fallback(path: &Path) -> Option<String> {
 
 /// Read image dimensions for the common raster formats supported by the
 /// `image` crate. Returns `Ok(None)` if dimensions cannot be determined
-/// (e.g. SVG, unknown).
+/// (SVG, audio, video, or unrecognised format).
 pub fn read_dimensions(bytes: &[u8]) -> Result<Option<(u32, u32)>, DetectError> {
     use std::io::Cursor;
     let reader = image::ImageReader::new(Cursor::new(bytes))
@@ -89,5 +108,46 @@ mod tests {
         let bytes = b"random text content";
         let mime = detect_mime(bytes, Some(Path::new("file.unknown")));
         assert_eq!(mime, "application/octet-stream");
+    }
+
+    #[test]
+    fn detects_mp3_id3_header() {
+        // Real mp3 files start with "ID3" tag; infer recognises this.
+        let bytes = b"ID3\x04\x00\x00\x00\x00\x00\x00";
+        let mime = detect_mime(bytes, Some(Path::new("track.mp3")));
+        assert_eq!(mime, "audio/mpeg");
+    }
+
+    #[test]
+    fn detects_mp4_by_isom_atom() {
+        // `....ftypisom` — first 4 bytes are the box size, then "ftyp", then the major brand.
+        let bytes = [
+            0x00, 0x00, 0x00, 0x20, b'f', b't', b'y', b'p', b'i', b's', b'o', b'm',
+        ];
+        let mime = detect_mime(&bytes, Some(Path::new("clip.mp4")));
+        assert_eq!(mime, "video/mp4");
+    }
+
+    #[test]
+    fn extension_fallback_for_flac() {
+        // FLAC has the magic "fLaC"; tiny payload might still be detected,
+        // so use a non-FLAC payload and rely on extension.
+        let bytes = b"not really flac";
+        let mime = detect_mime(bytes, Some(Path::new("song.flac")));
+        assert_eq!(mime, "audio/flac");
+    }
+
+    #[test]
+    fn extension_fallback_for_webm_video() {
+        let bytes = b"random";
+        let mime = detect_mime(bytes, Some(Path::new("clip.webm")));
+        assert_eq!(mime, "video/webm");
+    }
+
+    #[test]
+    fn extension_fallback_for_ogv() {
+        let bytes = b"random";
+        let mime = detect_mime(bytes, Some(Path::new("clip.ogv")));
+        assert_eq!(mime, "video/ogg");
     }
 }

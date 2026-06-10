@@ -173,16 +173,21 @@ export class ZpicUploader {
 import { TFile } from 'obsidian';
 
 /**
- * Check if file is an image
+ * Check if file is uploadable media (image, audio, or video)
  */
 export function isImageFile(file: File | TFile): boolean {
-  const imageExtensions = [
+  const mediaExtensions = [
+    // images
     '.png', '.jpg', '.jpeg', '.gif', '.webp',
-    '.bmp', '.tiff', '.tif', '.svg', '.avif'
+    '.bmp', '.tiff', '.tif', '.svg', '.avif',
+    // audio
+    '.mp3', '.flac', '.wav', '.ogg', '.oga', '.m4a', '.3gp',
+    // video
+    '.mp4', '.webm', '.ogv',
   ];
-  
+
   const fileName = file.name.toLowerCase();
-  return imageExtensions.some(ext => fileName.endsWith(ext));
+  return mediaExtensions.some(ext => fileName.endsWith(ext));
 }
 
 /**

@@ -15,7 +15,7 @@ keywords = ["image-hosting", "picgo", "zpic", "s3", "github"]
 [dependencies]
 zpic-core = { workspace = true }
 zpic-config = { workspace = true }
-zpic-image = { workspace = true }
+zpic-media = { workspace = true }
 zpic-plugins = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }

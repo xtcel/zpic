@@ -3,6 +3,41 @@
 use crate::config::OutputFormat;
 use crate::upload::UploadOutput;
 
+/// Coarse media classification. The CLI uses this to pick sensible
+/// default HTML / JSX templates — `<img>` for images, `<audio>` for
+/// audio, `<video>` for video. The classification is intentionally
+/// driven by the MIME top-level type so it stays correct even for
+/// formats whose extensions are ambiguous (e.g. `webm`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaKind {
+    Image,
+    Audio,
+    Video,
+    /// Anything that is not a top-level `image/*`, `audio/*`, or `video/*`.
+    /// Falls back to a plain link in the HTML/JSX renderers.
+    Other,
+}
+
+/// Classify a MIME string into a [`MediaKind`]. Strips parameters (the
+/// `; charset=...` part) before matching, and is case-insensitive.
+pub fn media_kind_for(mime: &str) -> MediaKind {
+    let top = mime
+        .split(';')
+        .next()
+        .unwrap_or(mime)
+        .trim()
+        .to_ascii_lowercase();
+    if top.starts_with("image/") {
+        MediaKind::Image
+    } else if top.starts_with("audio/") {
+        MediaKind::Audio
+    } else if top.starts_with("video/") {
+        MediaKind::Video
+    } else {
+        MediaKind::Other
+    }
+}
+
 /// Variables available in user-supplied format templates.
 #[derive(Debug, Clone)]
 pub struct FormatVars<'a> {
@@ -98,20 +133,43 @@ pub fn render_format(template: &str, vars: &FormatVars<'_>) -> String {
     out
 }
 
-/// Default template for a known `OutputFormat`.
+/// Default template for a known `OutputFormat` when the media is an
+/// image. Kept as a thin wrapper for backwards compatibility with
+/// callers (and tests) that don't care about audio/video.
 pub fn default_template(format: OutputFormat) -> &'static str {
-    match format {
-        OutputFormat::Markdown => "![{alt}]({url})",
-        OutputFormat::Url => "{url}",
-        OutputFormat::Html => "<img src=\"{url}\" alt=\"{alt}\" />",
-        OutputFormat::Jsx => "<Image src=\"{url}\" alt=\"{alt}\" width={width} height={height} />",
-        OutputFormat::Json => "", // JSON mode is rendered separately.
+    default_template_for(format, MediaKind::Image)
+}
+
+/// Default template for a known `OutputFormat` and media kind.
+///
+/// Markdown is intentionally format-agnostic — the `![alt](url)` form
+/// works in Obsidian, VS Code, and most static-site generators for
+/// images; many renderers fall back to a link for non-images. Users
+/// who want audio/video specific Markdown can pass `--format` with a
+/// custom template.
+pub fn default_template_for(format: OutputFormat, kind: MediaKind) -> &'static str {
+    match (format, kind) {
+        (OutputFormat::Markdown, _) => "![{alt}]({url})",
+        (OutputFormat::Url, _) => "{url}",
+        (OutputFormat::Html, MediaKind::Image) => "<img src=\"{url}\" alt=\"{alt}\" />",
+        (OutputFormat::Html, MediaKind::Audio) => "<audio controls src=\"{url}\"></audio>",
+        (OutputFormat::Html, MediaKind::Video) => "<video controls src=\"{url}\"></video>",
+        (OutputFormat::Html, MediaKind::Other) => "<a href=\"{url}\">{alt}</a>",
+        (OutputFormat::Jsx, MediaKind::Image) => {
+            "<Image src=\"{url}\" alt=\"{alt}\" width={width} height={height} />"
+        }
+        (OutputFormat::Jsx, MediaKind::Audio) => "<audio controls src=\"{url}\" />",
+        (OutputFormat::Jsx, MediaKind::Video) => {
+            "<video controls src=\"{url}\" width={width} height={height} />"
+        }
+        (OutputFormat::Jsx, MediaKind::Other) => "<a href=\"{url}\">{alt}</a>",
+        (OutputFormat::Json, _) => "", // JSON mode is rendered separately.
     }
 }
 
 /// Render a single upload using the given format and optional custom
 /// template. When `custom_template` is `Some`, it overrides the default for
-/// the selected format.
+/// the selected format (and media kind).
 pub fn render_format_for_kind(
     format: OutputFormat,
     custom_template: Option<&str>,
@@ -121,7 +179,9 @@ pub fn render_format_for_kind(
         // JSON rendering is the responsibility of the caller.
         return String::new();
     }
-    let template = custom_template.unwrap_or_else(|| default_template(format));
+    let kind = media_kind_for(&out.mime);
+    let template =
+        custom_template.unwrap_or_else(|| default_template_for(format, kind));
     let vars = FormatVars::from_output(out);
     render_format(template, &vars)
 }
@@ -188,5 +248,64 @@ mod tests {
             rendered,
             "![cover](https://cdn.example.com/cover.png?w=800)"
         );
+    }
+
+    #[test]
+    fn classifies_mime_into_media_kind() {
+        assert_eq!(media_kind_for("image/png"), MediaKind::Image);
+        assert_eq!(media_kind_for("image/svg+xml"), MediaKind::Image);
+        assert_eq!(media_kind_for("audio/mpeg"), MediaKind::Audio);
+        assert_eq!(media_kind_for("audio/ogg; codecs=opus"), MediaKind::Audio);
+        assert_eq!(media_kind_for("video/mp4"), MediaKind::Video);
+        assert_eq!(media_kind_for("video/webm"), MediaKind::Video);
+        assert_eq!(media_kind_for("text/plain"), MediaKind::Other);
+        assert_eq!(media_kind_for("application/octet-stream"), MediaKind::Other);
+        // Case-insensitive.
+        assert_eq!(media_kind_for("IMAGE/PNG"), MediaKind::Image);
+    }
+
+    #[test]
+    fn html_renders_audio_tag_for_audio_mime() {
+        let mut out = sample_output();
+        out.mime = "audio/mpeg".into();
+        out.url = "https://cdn.example.com/track.mp3".into();
+        out.key = "audio/track.mp3".into();
+        out.markdown = "![track.mp3](https://cdn.example.com/track.mp3)".into();
+        out.width = None;
+        out.height = None;
+        let rendered = render_format_for_kind(OutputFormat::Html, None, &out);
+        assert_eq!(
+            rendered,
+            "<audio controls src=\"https://cdn.example.com/track.mp3\"></audio>"
+        );
+    }
+
+    #[test]
+    fn html_renders_video_tag_for_video_mime() {
+        let mut out = sample_output();
+        out.mime = "video/mp4".into();
+        out.url = "https://cdn.example.com/clip.mp4".into();
+        out.key = "video/clip.mp4".into();
+        out.markdown = "![clip.mp4](https://cdn.example.com/clip.mp4)".into();
+        out.width = None;
+        out.height = None;
+        let rendered = render_format_for_kind(OutputFormat::Html, None, &out);
+        assert_eq!(
+            rendered,
+            "<video controls src=\"https://cdn.example.com/clip.mp4\"></video>"
+        );
+    }
+
+    #[test]
+    fn jsx_renders_video_with_dimensions_when_known() {
+        let mut out = sample_output();
+        out.mime = "video/webm".into();
+        out.markdown = "![clip.webm](https://cdn.example.com/clip.webm)".into();
+        out.width = Some(1920);
+        out.height = Some(1080);
+        let rendered = render_format_for_kind(OutputFormat::Jsx, None, &out);
+        assert!(rendered.contains("<video"));
+        assert!(rendered.contains("width=1920"));
+        assert!(rendered.contains("height=1080"));
     }
 }

@@ -3883,7 +3883,7 @@ dependencies = [
  "zpic-config",
  "zpic-core",
  "zpic-history",
- "zpic-image",
+ "zpic-media",
  "zpic-plugins",
  "zpic-uploaders",
 ]
@@ -3929,7 +3929,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zpic-image"
+name = "zpic-media"
 version = "0.1.2"
 dependencies = [
  "blake3",
@@ -3985,7 +3985,7 @@ dependencies = [
  "url",
  "zpic-config",
  "zpic-core",
- "zpic-image",
+ "zpic-media",
  "zpic-plugins",
 ]
 

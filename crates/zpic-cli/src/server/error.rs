@@ -44,7 +44,8 @@ pub enum ServerError {
     #[error("invalid multipart field: {0}")]
     InvalidField(String),
 
-    /// The uploaded file is not an image (extension not in the allow-list).
+    /// The uploaded file's extension is not in the allow-list
+    /// (see `MEDIA_EXTENSIONS` in `handlers`).
     #[error("invalid file type: {0}")]
     InvalidFileType(String),
 

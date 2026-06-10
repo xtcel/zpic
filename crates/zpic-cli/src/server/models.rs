@@ -122,7 +122,7 @@ pub struct UploadResultItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UploadErrorCode {
-    /// File extension / MIME type is not in the allow-list.
+    /// File extension is not in the allow-list (covers image, audio, video).
     InvalidFileType,
     /// A path in the JSON list does not exist on disk.
     FileNotFound,

@@ -36,7 +36,7 @@ Before a release:
    ```bash
    cargo package -p zpic-core
    cargo package -p zpic-config
-   cargo package -p zpic-image
+   cargo package -p zpic-media
    cargo package -p zpic-history
    cargo package -p zpic-uploaders
    cargo package -p zpic
@@ -53,7 +53,7 @@ Before a release:
    ```bash
    cargo publish -p zpic-core
    cargo publish -p zpic-config
-   cargo publish -p zpic-image
+   cargo publish -p zpic-media
    cargo publish -p zpic-history
    cargo publish -p zpic-uploaders
    cargo publish -p zpic

@@ -1,5 +1,6 @@
-//! Image metadata extraction: MIME detection, dimension reading, content
-//! hashing, and path-template rendering.
+//! Media metadata extraction: MIME detection, dimension reading (images
+//! only), content hashing, and path-template rendering. Covers images,
+//! audio, and video.
 
 pub mod detect;
 pub mod hash;

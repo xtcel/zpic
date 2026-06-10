@@ -8,8 +8,11 @@
 import { TFile } from 'obsidian';
 import type { ImageDescMode } from './types';
 
-/** Lower-case image extensions accepted by the plugin and zpic server. */
-const IMAGE_EXTENSIONS = [
+/** Lower-case extensions accepted by the plugin and zpic server.
+ *  Covers images, audio, and video. `webm` is shared by both audio
+ *  and video upstream but is only listed once here. */
+const MEDIA_EXTENSIONS = [
+  // images
   '.png',
   '.jpg',
   '.jpeg',
@@ -20,17 +23,29 @@ const IMAGE_EXTENSIONS = [
   '.tif',
   '.svg',
   '.avif',
+  // audio
+  '.mp3',
+  '.flac',
+  '.wav',
+  '.ogg',
+  '.oga',
+  '.m4a',
+  '.3gp',
+  // video
+  '.mp4',
+  '.webm',
+  '.ogv',
 ];
 
 /**
- * Check whether a file (browser `File` or Obsidian `TFile`) is an image
- * by looking at its extension. The MIME type on `File` objects is not
- * reliable across mobile platforms, so we fall back to the extension.
+ * Check whether a file (browser `File` or Obsidian `TFile`) is uploadable
+ * media by looking at its extension. The MIME type on `File` objects is
+ * not reliable across mobile platforms, so we fall back to the extension.
  */
 export function isImageFile(file: File | TFile): boolean {
   if (!file || !file.name) return false;
   const fileName = file.name.toLowerCase();
-  return IMAGE_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+  return MEDIA_EXTENSIONS.some((ext) => fileName.endsWith(ext));
 }
 
 /**
@@ -73,11 +88,13 @@ export function normalizeServerUrl(url: string): string {
 
 /**
  * Heuristic MIME guess from a filename. Used as a fallback when the
- * platform-provided `File.type` is empty (common on iOS).
+ * platform-provided `File.type` is empty (common on iOS). Mirrors
+ * the server-side extension table in `crates/zpic-media/src/detect.rs`.
  */
 export function guessMimeType(fileName: string): string {
   const ext = fileName.toLowerCase().split('.').pop() ?? '';
   switch (ext) {
+    // images
     case 'png':
       return 'image/png';
     case 'jpg':
@@ -96,6 +113,27 @@ export function guessMimeType(fileName: string): string {
     case 'tif':
     case 'tiff':
       return 'image/tiff';
+    // audio
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'flac':
+      return 'audio/flac';
+    case 'wav':
+      return 'audio/wav';
+    case 'ogg':
+    case 'oga':
+      return 'audio/ogg';
+    case 'm4a':
+      return 'audio/mp4';
+    case '3gp':
+      return 'audio/3gpp';
+    // video
+    case 'mp4':
+      return 'video/mp4';
+    case 'webm':
+      return 'video/webm';
+    case 'ogv':
+      return 'video/ogg';
     default:
       return 'application/octet-stream';
   }

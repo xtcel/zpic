@@ -13,7 +13,7 @@ use zpic_core::format::{render_format_for_kind, FormatVars};
 use zpic_core::upload::{
     UploadContext, UploadInput, UploadItem, UploadOutput, UploadRequest, Uploader,
 };
-use zpic_image::{
+use zpic_media::{
     content_hash_hex, detect_mime, read_dimensions, render_template, TemplateContext,
 };
 

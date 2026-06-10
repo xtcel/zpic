@@ -269,11 +269,11 @@ fn json_path_rejects_missing_file() {
 }
 
 #[test]
-fn json_path_rejects_non_image_extension() {
+fn json_path_rejects_disallowed_extension() {
     let dir = TempDir::new().unwrap();
     let cfg = write_local_config(&dir);
     let txt = dir.path().join("note.txt");
-    std::fs::write(&txt, "not an image").unwrap();
+    std::fs::write(&txt, "not a media file").unwrap();
     let server = run(async { TestServer::start(&cfg).await });
 
     let url = server.url("/upload");
@@ -285,6 +285,87 @@ fn json_path_rejects_non_image_extension() {
 
     assert_eq!(body["success"], false);
     assert_eq!(body["code"], "INVALID_FILE_TYPE");
+
+    run(server.shutdown());
+}
+
+#[test]
+fn json_path_accepts_audio_upload() {
+    // An MP3 with a valid ID3 header should pass the allow-list, get
+    // detected as `audio/mpeg`, and be persisted under the same local
+    // uploader path as an image.
+    let dir = TempDir::new().unwrap();
+    let cfg = write_local_config(&dir);
+    let mp3_path = dir.path().join("track.mp3");
+    // Minimal ID3v2 header: "ID3" + version + flags + size. The exact
+    // body is irrelevant — we only need the magic for MIME detection.
+    let mp3_bytes: &[u8] = b"ID3\x04\x00\x00\x00\x00\x00\x00zpic-test-audio";
+    std::fs::write(&mp3_path, mp3_bytes).unwrap();
+
+    let server = run(async { TestServer::start(&cfg).await });
+
+    let body: Value = run(async {
+        let url = server.url("/upload");
+        let payload = serde_json::json!({ "list": [mp3_path.display().to_string()] });
+        let text = reqwest_post_json(&url, &payload.to_string()).await;
+        serde_json::from_str(&text).unwrap()
+    });
+
+    assert_eq!(body["success"], true, "expected mp3 upload to succeed; got {body}");
+    let urls = body["result"].as_array().unwrap();
+    assert_eq!(urls.len(), 1);
+
+    // The local uploader should have written the file with the .mp3
+    // extension preserved by the rename template.
+    let stored: Vec<_> = walkdir::WalkDir::new(dir.path().join("public"))
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .collect();
+    assert_eq!(stored.len(), 1, "exactly one file should be stored");
+    let stored_name = stored[0].file_name().to_string_lossy().into_owned();
+    assert!(
+        stored_name.ends_with(".mp3"),
+        "stored file should keep the .mp3 extension; got {stored_name}"
+    );
+
+    run(server.shutdown());
+}
+
+#[test]
+fn json_path_accepts_video_upload() {
+    // A 12-byte MP4 ftyp box is enough for `infer` to recognise the file
+    // as `video/mp4`. The rest of the bytes are filler.
+    let dir = TempDir::new().unwrap();
+    let cfg = write_local_config(&dir);
+    let mp4_path = dir.path().join("clip.mp4");
+    let mp4_bytes: [u8; 12] = [
+        0x00, 0x00, 0x00, 0x20, b'f', b't', b'y', b'p', b'i', b's', b'o', b'm',
+    ];
+    std::fs::write(&mp4_path, mp4_bytes).unwrap();
+
+    let server = run(async { TestServer::start(&cfg).await });
+
+    let body: Value = run(async {
+        let url = server.url("/upload");
+        let payload = serde_json::json!({ "list": [mp4_path.display().to_string()] });
+        let text = reqwest_post_json(&url, &payload.to_string()).await;
+        serde_json::from_str(&text).unwrap()
+    });
+
+    assert_eq!(body["success"], true, "expected mp4 upload to succeed; got {body}");
+
+    let stored: Vec<_> = walkdir::WalkDir::new(dir.path().join("public"))
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .collect();
+    assert_eq!(stored.len(), 1, "exactly one file should be stored");
+    let stored_name = stored[0].file_name().to_string_lossy().into_owned();
+    assert!(
+        stored_name.ends_with(".mp4"),
+        "stored file should keep the .mp4 extension; got {stored_name}"
+    );
 
     run(server.shutdown());
 }
