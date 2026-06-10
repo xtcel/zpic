@@ -100,11 +100,26 @@ export class ZpicUploader {
     // boundary explicitly, and ship the raw bytes with the matching
     // header.
     const { body, contentType } = await buildMultipartBody(files);
+
+    // `RequestUrlParam.body` is typed as `string | ArrayBuffer`, not
+    // `Uint8Array`. Passing a `Uint8Array` cast as `string` corrupts
+    // the binary payload: `requestUrl` UTF-8 decodes it on the way
+    // out, replacing every invalid byte sequence (i.e. almost all
+    // image bytes after the ASCII headers) with U+FFFD. The server
+    // then sees a malformed multipart envelope and replies with HTTP
+    // 400 "incomplete multipart stream". Slicing the underlying
+    // `ArrayBuffer` and shipping it as binary preserves every byte
+    // on the wire.
+    const bodyBuffer = body.buffer.slice(
+      body.byteOffset,
+      body.byteOffset + body.byteLength,
+    ) as ArrayBuffer;
+
     const params: RequestUrlParam = {
       url: `${this.serverUrl}/upload`,
       method: "POST",
       headers: { "Content-Type": contentType },
-      body: body as unknown as string,
+      body: bodyBuffer,
       throw: false,
     };
     const response = await this.sendWithTimeout(params);

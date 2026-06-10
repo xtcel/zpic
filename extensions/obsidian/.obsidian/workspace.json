@@ -15,7 +15,7 @@
               "state": {
                 "file": "test.md",
                 "mode": "source",
-                "source": false
+                "source": true
               },
               "icon": "lucide-file",
               "title": "test"

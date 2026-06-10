@@ -7,6 +7,25 @@ and the project adheres to [Semantic Versioning][semver].
 [keep-a-changelog]: https://keepachangelog.com/en/1.1.0/
 [semver]: https://semver.org/spec/v2.0.0.html
 
+## [0.1.2] — 2026-06-10
+
+### Fixed
+
+- **Mobile / clipboard uploads still failed with `Server returned HTTP 400`**
+  after the 0.1.1 release. The plugin hand-builds the multipart envelope
+  as a `Uint8Array` (`buildMultipartBody` in `src/uploader.ts`), but
+  `RequestUrlParam.body` is typed as `string | ArrayBuffer`. Casting the
+  `Uint8Array` to `string` caused Obsidian's `requestUrl` to UTF-8 decode
+  the binary payload, replacing every invalid byte sequence (i.e. almost
+  all image bytes after the ASCII headers) with `U+FFFD`. The server
+  then saw a malformed envelope and replied with
+  `multipart error: incomplete multipart stream`.
+
+  The plugin now slices the underlying `ArrayBuffer` and ships it as
+  binary, so every byte survives the round-trip. JSON path-list uploads
+  (desktop, file-on-disk) were not affected and continue to work
+  unchanged.
+
 ## [0.1.1] — 2026-06-09
 
 ### Fixed
