@@ -431,9 +431,15 @@ fn percent_encode_path(input: &str) -> String {
 /// Build the canonical-headers block for SigV4. The map is iterated in
 /// sorted key order; each entry is rendered as `<key>:<value>\n`.
 fn canonicalize_headers(headers: &BTreeMap<String, String>) -> String {
+    // SigV4 requires header names to be lowercase in the canonical
+    // request. Lower-case each key before emitting so mixed-case
+    // callers (e.g. http libraries that pass the original case from
+    // the request) still produce the right canonical form. BTreeMap
+    // keeps the iteration sorted, so the output is correctly ordered
+    // as a side-effect.
     let mut out = String::new();
     for (k, v) in headers {
-        out.push_str(k);
+        out.push_str(&k.to_ascii_lowercase());
         out.push(':');
         out.push_str(v.trim());
         out.push('\n');

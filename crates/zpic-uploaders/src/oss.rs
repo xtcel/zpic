@@ -476,10 +476,14 @@ fn percent_encode_path(input: &str) -> String {
 /// already be filtered to only include default-signed and additional-signed
 /// headers; the function takes care of sorting and formatting.
 fn canonicalize_headers(headers: &BTreeMap<String, String>) -> String {
-    // BTreeMap iterates in key order, so we just concatenate.
+    // SigV4 requires header names to be lowercase in the canonical
+    // request. Lower-case each key before emitting so mixed-case
+    // callers still produce the right canonical form. BTreeMap keeps
+    // the iteration sorted, so the output is correctly ordered as a
+    // side-effect.
     let mut out = String::new();
     for (k, v) in headers {
-        out.push_str(k);
+        out.push_str(&k.to_ascii_lowercase());
         out.push(':');
         out.push_str(v.trim());
         out.push('\n');
@@ -538,9 +542,11 @@ mod tests {
             percent_encode_path("/mybucket/images/2026/06/04/cover.png"),
             "/mybucket/images/2026/06/04/cover.png"
         );
+        // Spaces are encoded; `*` is a sub-delim and is encoded; `~` and
+        // `/` are kept unencoded per RFC 3986 unreserved set.
         assert_eq!(
             percent_encode_path("/mybucket/path with spaces/file*~.txt"),
-            "/mybucket/path%20with%20spaces/file*~.txt"
+            "/mybucket/path%20with%20spaces/file%2A~.txt"
         );
         // `*` must be encoded per the OSS rules; `~` and `/` are kept.
         assert_eq!(percent_encode_path("/b/a*b"), "/b/a%2Ab");

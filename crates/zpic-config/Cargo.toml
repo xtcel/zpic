@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Configuration loading and PicGo compatibility for zpic."
+categories = ["config", "parser-implementations"]
+keywords = ["image-hosting", "picgo", "zpic", "config"]
 
 [dependencies]
 zpic-core = { workspace = true }

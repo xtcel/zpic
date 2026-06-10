@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Core models, errors, traits, and formatters for zpic."
+categories = ["data-structures"]
+keywords = ["image-hosting", "picgo", "zpic"]
 
 [dependencies]
 async-trait = { workspace = true }

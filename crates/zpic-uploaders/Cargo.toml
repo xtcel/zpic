@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Built-in local, GitHub, and S3 uploaders for zpic."
+categories = ["api-bindings", "network-programming"]
+keywords = ["image-hosting", "picgo", "zpic", "s3", "github"]
 
 [dependencies]
 zpic-core = { workspace = true }

@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "SQLite-backed upload history storage for zpic."
+categories = ["database"]
+keywords = ["image-hosting", "picgo", "zpic", "sqlite"]
 
 [dependencies]
 zpic-core = { workspace = true }

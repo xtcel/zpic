@@ -12,7 +12,7 @@ members = [
 exclude = ["extensions/zed"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT OR Apache-2.0"
@@ -21,12 +21,12 @@ homepage = "https://github.com/xtcel/zpic"
 authors = ["xtcel"]
 
 [workspace.dependencies]
-zpic-core = { version = "0.1.0", path = "crates/zpic-core" }
-zpic-config = { version = "0.1.0", path = "crates/zpic-config" }
-zpic-image = { version = "0.1.0", path = "crates/zpic-image" }
-zpic-history = { version = "0.1.0", path = "crates/zpic-history" }
-zpic-plugins = { version = "0.1.0", path = "crates/zpic-plugins" }
-zpic-uploaders = { version = "0.1.0", path = "crates/zpic-uploaders" }
+zpic-core = { version = "0.1.2", path = "crates/zpic-core" }
+zpic-config = { version = "0.1.2", path = "crates/zpic-config" }
+zpic-image = { version = "0.1.2", path = "crates/zpic-image" }
+zpic-history = { version = "0.1.2", path = "crates/zpic-history" }
+zpic-plugins = { version = "0.1.2", path = "crates/zpic-plugins" }
+zpic-uploaders = { version = "0.1.2", path = "crates/zpic-uploaders" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

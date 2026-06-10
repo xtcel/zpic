@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Plugin manifests, discovery, registry, and WASM runtime support for zpic."
+categories = ["wasm", "development-tools"]
+keywords = ["image-hosting", "picgo", "zpic", "wasm", "plugin"]
 
 [dependencies]
 zpic-core = { workspace = true }

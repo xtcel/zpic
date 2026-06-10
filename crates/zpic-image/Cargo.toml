@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Image metadata, hashing, and path templating utilities for zpic."
+categories = ["multimedia", "api-bindings"]
+keywords = ["image-hosting", "picgo", "zpic", "image"]
 
 [dependencies]
 bytes = { workspace = true }

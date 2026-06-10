@@ -9,6 +9,8 @@ repository.workspace = true
 homepage.workspace = true
 readme = "../../README.md"
 description = "Rust-native image hosting CLI compatible with PicGo configuration."
+categories = ["command-line-utilities", "api-bindings"]
+keywords = ["image-hosting", "picgo", "zpic", "cli", "markdown"]
 
 [lib]
 name = "zpic_cli"
