@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-11
+
+### Added
+
+- **Real-time upload progress reporting in the CLI and uploaders.**
+  `zpic upload` now streams progress events from the active uploader
+  and renders an updating progress bar (bytes + percentage) for local,
+  GitHub, S3, and OSS targets. The `Uploader` trait gained a default
+  `progress` channel on the upload context; uploaders that can report
+  byte-level progress opt in by emitting `UploadProgress` events, and
+  the CLI falls back to an indeterminate spinner for uploaders that
+  cannot (e.g. legacy WASM plugins).
+
 ### Changed
 
 - **Crate renamed: `zpic-image` → `zpic-media`.** The crate's responsibility
@@ -34,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the workspace `Cargo.toml` but never used — MIME detection is handled
   by `infer` plus a small extension table in `zpic-media`. Removing it
   drops a handful of transitive crates from the build.
+- **Workspace version bumped from `0.1.2` to `0.2.0`.** The `0.1.x`
+  line kept the rename and audio/video work under a minor bump because
+  the Rust API change (`zpic-image` → `zpic-media`) breaks downstream
+  consumers that depend on the crate by name. Per semver, this is
+  permissible in pre-`1.0` releases and the bump is recorded in the
+  changelog rather than hidden in a patch release.
 
 ### Obsidian plugin
 
@@ -135,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `zpic-upload: false` YAML key. Lives in `extensions/obsidian/` and
   releases independently of the Rust crates.
 
-[Unreleased]: https://github.com/xtcel/zpic/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/xtcel/zpic/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/xtcel/zpic/compare/16b4781...0.2.0
 [0.1.2]: https://github.com/xtcel/zpic/compare/d38d129...16b4781
 [0.1.0]: https://github.com/xtcel/zpic/compare/fcea8d7...d38d129

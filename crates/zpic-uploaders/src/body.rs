@@ -117,7 +117,11 @@ mod tests {
             assert_eq!(total_seen, total);
         });
         let body = Bytes::from(vec![0u8; total as usize]);
-        let chunk_size = DEFAULT_CHUNK_SIZE;
+        // Use a chunk size smaller than `total` so the stream produces
+        // multiple chunks — DEFAULT_CHUNK_SIZE (64 KiB) would collapse a
+        // 100-byte body into a single chunk and the per-chunk-callback
+        // invariant would not be exercised.
+        let chunk_size = 64;
         let chunk_offsets: Vec<(usize, usize)> = (0..total as usize)
             .step_by(chunk_size)
             .map(|s| (s, (s + chunk_size).min(total as usize)))
