@@ -115,6 +115,33 @@ zpic server start --host 0.0.0.0 --port 8080
 zpic server start --config /path/to/config.toml
 ```
 
+`--host` and `--port` are global flags, so they can also be placed
+before the `start` subcommand: `zpic server --host 0.0.0.0 start` is
+equivalent.
+
+When the server is bound to `0.0.0.0` (all interfaces), the startup
+banner additionally prints every local IPv4 address that is
+plausibly reachable from another device on the same network — RFC
+1918 (10/8, 172.16/12, 192.168/16) and public IPs. Loopback,
+link-local (169.254/16), CGNAT (100.64/10), multicast, and
+benchmarking ranges are filtered out as not useful for this purpose.
+
+```text
+✓ zpic server listening on http://0.0.0.0:36677
+  ➜  Local:   http://127.0.0.1:36677/
+  ➜  Network: http://192.168.1.42:36677/
+  uploader: github (MyBlog)
+  Press Ctrl+C to stop.
+```
+
+On a multi-homed host (e.g. WiFi + ethernet) you may see more than
+one `Network:` line — one per reachable interface. Pick the one that
+matches the network your phone or laptop is on.
+
+When the server is bound to a specific address (the default
+`127.0.0.1`, or a particular interface IP), the banner stays compact
+and only prints the address you asked for.
+
 The server reads the same zpic config the `upload` and `migrate`
 commands use, so the active uploader and the rename template are
 shared with the rest of the CLI.

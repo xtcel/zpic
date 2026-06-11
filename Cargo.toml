@@ -90,6 +90,9 @@ base64 = "0.22"
 # URL utilities
 url = "2"
 
+# Network interface enumeration (LAN URL discovery for the HTTP server)
+if-addrs = "0.15"
+
 # WASM runtime
 wasmtime = { version = "29.0.1", default-features = false, features = ["cranelift", "runtime", "wat"] }
 
