@@ -72,6 +72,15 @@ in-memory rather than on disk. The server writes the part to a temp
 file under the system temp dir, runs the standard pipeline, and
 deletes the temp file when the upload finishes (success or failure).
 
+#### Upload size limits
+
+- HTTP request body limit: `1 GiB`.
+- Single multipart file limit: `512 MiB`.
+
+If either limit is exceeded, the server rejects the request with a
+payload-too-large style error (typically `HTTP 413` or a structured
+`success: false` response, depending on which layer triggers first).
+
 #### Response
 
 ```json

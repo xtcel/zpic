@@ -27,10 +27,10 @@ use super::models::{
 };
 use super::state::AppState;
 
-/// Cap the size of a single multipart file. `25 MiB` is generous for
-/// screenshots and small diagrams; larger files should still fit
-/// because the multipart parser is bounded.
-const MAX_PART_BYTES: usize = 25 * 1024 * 1024;
+/// Cap the size of a single multipart file. Set to `512 MiB` so large
+/// video/audio uploads from Obsidian can pass while still enforcing
+/// a clear upper bound.
+const MAX_PART_BYTES: usize = 512 * 1024 * 1024;
 
 /// Extension allow-list, mirrored from the Obsidian plugin and the
 /// proposal spec. Centralised here so the server and the client agree

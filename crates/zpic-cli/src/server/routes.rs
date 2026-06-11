@@ -34,9 +34,10 @@ pub fn router(state: AppState) -> Router {
         .route("/config", get(config))
         .route("/upload", post(upload))
         .with_state(state)
-        // Permit 50 MiB bodies by default. Multipart handlers enforce
-        // a tighter per-part limit (`MAX_PART_BYTES`) on top of this.
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
+        // Permit up to 1 GiB request bodies. This keeps large video
+        // uploads (desktop/mobile multipart) from being rejected with
+        // HTTP 413 before reaching the handler-level validation.
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 1024))
         // Cap request handling at 60 seconds so a stuck uploader
         // can't tie up a worker forever. The `tower_http` variant
         // produces a status-code response on timeout instead of an
