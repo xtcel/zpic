@@ -112,6 +112,10 @@ pub struct UploadArgs {
     /// Validate the upload pipeline without writing any files.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Suppress the real-time upload progress line.
+    #[arg(long)]
+    pub no_progress: bool,
 }
 
 #[derive(Debug, Args)]

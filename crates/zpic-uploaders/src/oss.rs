@@ -19,7 +19,9 @@ use std::collections::BTreeMap;
 
 use zpic_config::UploaderSection;
 use zpic_core::error::{Result, ZpicError};
-use zpic_core::upload::{UploadOutput, UploadRequest, Uploader};
+use zpic_core::upload::{ProgressCallback, UploadOutput, UploadRequest, Uploader};
+
+use crate::body::body_with_progress;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -274,6 +276,7 @@ impl Uploader for OssUploader {
             &self.access_key_id,
             &self.access_key_secret,
             req.input.bytes.clone(),
+            req.context.on_progress.clone(),
         )
         .await?;
         Ok(UploadOutput {
@@ -303,6 +306,7 @@ pub(crate) async fn oss_put_object_v4(
     access_key_id: &str,
     access_key_secret: &str,
     body: Bytes,
+    on_progress: Option<ProgressCallback>,
 ) -> Result<()> {
     use reqwest::header::{HeaderMap, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE};
 
@@ -433,7 +437,7 @@ pub(crate) async fn oss_put_object_v4(
     let resp = client
         .put(&url)
         .headers(header_map)
-        .body(body)
+        .body(body_with_progress(body, on_progress))
         .send()
         .await
         .map_err(|e| ZpicError::Network(format!("aliyun-oss put_object: {e}")))?;

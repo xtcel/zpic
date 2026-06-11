@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::cli::UploadArgs;
 use crate::output::{render_item_text, UploadPayload};
 use crate::pipeline::{self, ClipboardImage, PendingUpload};
+use crate::progress::ProgressSink;
 use crate::util::{load_config, load_uploader_registry, resolve_uploader};
 use zpic_core::config::OutputFormat;
 use zpic_core::error::{Result, ZpicError};
@@ -37,19 +38,44 @@ pub async fn run(args: UploadArgs, explicit_config: Option<PathBuf>, json: bool)
         }
     }
 
+    // The progress sink renders a real-time progress line on stderr when
+    // the terminal supports it. JSON mode stays silent to keep stdout
+    // machine-readable; `--no-progress` also forces the sink off.
+    let sink = ProgressSink::new(
+        json || args.no_progress,
+        uploader.name(),
+        inputs.len(),
+        args.dry_run,
+    );
+    sink.start();
+
     let mut items: Vec<UploadItem> = Vec::with_capacity(inputs.len());
     let mut last_text: Option<String> = None;
-    for mut pending in inputs {
+    for (idx, mut pending) in inputs.into_iter().enumerate() {
         pending.explicit_name = args.name.clone();
         pending.explicit_alt = args.alt.clone();
-        match pipeline::run_upload(&config, uploader.as_ref(), pending, args.dry_run).await {
+        let label = pending_label(&pending, idx + 1);
+        let total_bytes = pending.bytes.len() as u64;
+        sink.begin_file(&label, total_bytes);
+        let on_progress = sink.callback_for(&label, total_bytes);
+        match pipeline::run_upload(
+            &config,
+            uploader.as_ref(),
+            pending,
+            args.dry_run,
+            Some(on_progress),
+        )
+        .await
+        {
             Ok(out) => {
+                sink.finish_file(&label, total_bytes);
                 if let Some(text) = rendered_text(&out, &config, &args, json) {
                     last_text = Some(text);
                 }
                 items.push(UploadItem::success(out));
             }
             Err(err) => {
+                sink.fail_file(&label);
                 items.push(UploadItem::failure(
                     items_source_label(&args.clipboard, &items),
                     err.to_string(),
@@ -57,6 +83,8 @@ pub async fn run(args: UploadArgs, explicit_config: Option<PathBuf>, json: bool)
             }
         }
     }
+
+    sink.finish();
 
     // History persistence.
     if !args.dry_run && config.zpic.history_enabled {
@@ -138,6 +166,22 @@ fn items_source_label(clipboard: &bool, _items: &[UploadItem]) -> String {
         CLIPBOARD_SOURCE.to_string()
     } else {
         "<unknown>".to_string()
+    }
+}
+
+/// Best-effort human-readable label for an in-flight upload. Prefers the
+/// original file name (so users see `cover.png` instead of the rendered
+/// target key) and falls back to the source path.
+fn pending_label(pending: &PendingUpload, idx: usize) -> String {
+    let name = pending
+        .source_path
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| pending.file_name.clone());
+    if name.is_empty() || name == CLIPBOARD_SOURCE {
+        format!("[{idx}] {CLIPBOARD_SOURCE}")
+    } else {
+        format!("[{idx}] {name}")
     }
 }
 

@@ -19,6 +19,7 @@ zpic-media = { workspace = true }
 zpic-plugins = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
+futures = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

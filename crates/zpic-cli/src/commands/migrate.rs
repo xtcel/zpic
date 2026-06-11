@@ -106,7 +106,7 @@ async fn process_file(
             continue;
         }
         let pending = PendingUpload::from_path(&img.resolved)?;
-        match pipeline::run_upload(config, uploader, pending, args.dry_run).await {
+        match pipeline::run_upload(config, uploader, pending, args.dry_run, None).await {
             Ok(out) => {
                 let format = args
                     .format

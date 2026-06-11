@@ -10,6 +10,16 @@ use serde::{Deserialize, Serialize};
 use crate::config::ZpicConfig;
 use crate::error::Result;
 
+/// Callback used by uploaders to report byte-level progress to the CLI.
+///
+/// Arguments are `(bytes_sent, total_bytes)`. The total is the size of the
+/// request body the uploader is sending (the file size, in practice).
+/// `bytes_sent` is monotonic and never exceeds `total_bytes`; the final
+/// invocation must be `(total_bytes, total_bytes)`. Uploaders that do not
+/// perform a network write (e.g. the `local` uploader) do not need to
+/// invoke this callback.
+pub type ProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
 /// Inputs passed to an uploader.
 ///
 /// `bytes` and `size` are pre-loaded by the CLI; uploaders do not need to
@@ -58,7 +68,7 @@ impl UploadInput {
 }
 
 /// Per-call context passed to an uploader.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct UploadContext {
     /// The fully-resolved object key the uploader should write to.
     pub target_key: String,
@@ -66,6 +76,19 @@ pub struct UploadContext {
     pub config: Arc<dyn ZpicConfig>,
     /// `true` when the caller wants a "what would happen" run without writes.
     pub dry_run: bool,
+    /// Optional progress reporter. See [`ProgressCallback`].
+    pub on_progress: Option<ProgressCallback>,
+}
+
+impl std::fmt::Debug for UploadContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UploadContext")
+            .field("target_key", &self.target_key)
+            .field("config", &self.config)
+            .field("dry_run", &self.dry_run)
+            .field("on_progress", &self.on_progress.as_ref().map(|_| "..."))
+            .finish()
+    }
 }
 
 impl UploadContext {
@@ -75,6 +98,20 @@ impl UploadContext {
             target_key,
             config,
             dry_run: false,
+            on_progress: None,
+        }
+    }
+
+    /// Builder-style setter for `on_progress`.
+    pub fn with_progress(mut self, on_progress: Option<ProgressCallback>) -> Self {
+        self.on_progress = on_progress;
+        self
+    }
+
+    /// Helper: invoke the progress callback if one is installed.
+    pub fn report_progress(&self, sent: u64, total: u64) {
+        if let Some(cb) = &self.on_progress {
+            cb(sent, total);
         }
     }
 }

@@ -11,7 +11,7 @@ use zpic_core::config::ZpicConfig as ZpicConfigTrait;
 use zpic_core::error::{Result, ZpicError};
 use zpic_core::format::{render_format_for_kind, FormatVars};
 use zpic_core::upload::{
-    UploadContext, UploadInput, UploadItem, UploadOutput, UploadRequest, Uploader,
+    ProgressCallback, UploadContext, UploadInput, UploadItem, UploadOutput, UploadRequest, Uploader,
 };
 use zpic_media::{
     content_hash_hex, detect_mime, read_dimensions, render_template, TemplateContext,
@@ -71,11 +71,16 @@ impl PendingUpload {
 }
 
 /// Load a file, render the target key, and run the upload.
+///
+/// `on_progress` is forwarded to the uploader as an [`UploadContext`] callback.
+/// The CLI typically installs a callback that updates a terminal progress
+/// bar; the `migrate` flow passes `None` so it stays silent.
 pub async fn run_upload(
     config: &zpic_config::loader::LoadedConfig,
     uploader: &dyn Uploader,
     pending: PendingUpload,
     dry_run: bool,
+    on_progress: Option<ProgressCallback>,
 ) -> Result<UploadOutput> {
     let template = config.zpic.rename.effective_template();
     let hash_hex = content_hash_hex(&pending.bytes);
@@ -120,6 +125,7 @@ pub async fn run_upload(
             inner: config.clone(),
         }) as Arc<dyn ZpicConfigTrait>,
         dry_run,
+        on_progress,
     };
 
     let req = UploadRequest { context, input };

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use base64::Engine;
+use bytes::Bytes;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
@@ -12,6 +13,8 @@ use serde_json::json;
 use zpic_config::UploaderSection;
 use zpic_core::error::{Result, ZpicError};
 use zpic_core::upload::{UploadOutput, UploadRequest, Uploader};
+
+use crate::body::body_with_progress;
 
 const DEFAULT_USER_AGENT: &str = "zpic/0.1";
 
@@ -187,15 +190,31 @@ impl Uploader for GitHubUploader {
             "branch": self.branch,
             "content": encoded,
         });
+        // GitHub's API is JSON-based, so the body is built up in memory
+        // before we hand it to reqwest. We can't see incremental byte
+        // progress through the HTTP layer, but we still ping the
+        // progress callback at 0% and 100% so the CLI bar updates.
+        let on_progress = req.context.on_progress.clone();
+        if let Some(cb) = &on_progress {
+            cb(0, 1);
+        }
         let api = self.api_url(&req.context.target_key);
         let resp = self
             .client
             .put(&api)
             .headers(self.auth_headers())
-            .json(&body)
+            .body(body_with_progress(
+                Bytes::from(serde_json::to_vec(&body).map_err(|e| {
+                    ZpicError::UploadFailed(format!("github: serialize body: {e}"))
+                })?),
+                on_progress.clone(),
+            ))
             .send()
             .await
             .map_err(|e| ZpicError::Network(e.to_string()))?;
+        if let Some(cb) = &on_progress {
+            cb(1, 1);
+        }
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();

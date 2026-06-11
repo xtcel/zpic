@@ -42,10 +42,8 @@ const MAX_PART_BYTES: usize = 25 * 1024 * 1024;
 /// uploader boundary.
 const MEDIA_EXTENSIONS: &[&str] = &[
     // images
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "svg", "avif",
-    // audio
-    "mp3", "flac", "wav", "ogg", "oga", "m4a", "3gp",
-    // video
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "svg", "avif", // audio
+    "mp3", "flac", "wav", "ogg", "oga", "m4a", "3gp", // video
     "mp4", "webm", "ogv",
 ];
 
@@ -350,6 +348,7 @@ async fn handle_json(state: &AppState, body: &Bytes) -> ServerResult<UploadRespo
             state.uploader.as_ref(),
             pending,
             false,
+            None,
         )
         .await
         .map_err(ServerError::from)?;
@@ -491,6 +490,7 @@ async fn run_one(
         state.uploader.as_ref(),
         pending,
         false,
+        None,
     )
     .await
     .map_err(ServerError::from)

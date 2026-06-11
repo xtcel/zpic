@@ -19,7 +19,9 @@ use std::collections::BTreeMap;
 
 use zpic_config::UploaderSection;
 use zpic_core::error::{Result, ZpicError};
-use zpic_core::upload::{UploadOutput, UploadRequest, Uploader};
+use zpic_core::upload::{ProgressCallback, UploadOutput, UploadRequest, Uploader};
+
+use crate::body::body_with_progress;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -200,6 +202,7 @@ impl Uploader for S3Uploader {
             &self.access_key_id,
             &self.secret_access_key,
             req.input.bytes.clone(),
+            req.context.on_progress.clone(),
         )
         .await?;
         Ok(UploadOutput {
@@ -231,6 +234,7 @@ pub(crate) async fn s3_put_object(
     access_key_id: &str,
     secret_access_key: &str,
     body: Bytes,
+    on_progress: Option<ProgressCallback>,
 ) -> Result<()> {
     if key.is_empty() {
         return Err(ZpicError::UploadFailed("s3: object key is empty".into()));
@@ -340,7 +344,7 @@ pub(crate) async fn s3_put_object(
     let resp = client
         .put(&url)
         .headers(header_map)
-        .body(body)
+        .body(body_with_progress(body, on_progress))
         .send()
         .await
         .map_err(|e| ZpicError::Network(format!("s3 put_object: {e}")))?;
