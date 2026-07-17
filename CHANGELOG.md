@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-07-17
+## [0.2.2] - 2026-07-17
 
 ### Fixed
 
@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   been retiring and could leave the job queued indefinitely. This was
   blocking every downstream release artifact, including the Homebrew
   formula.
+- **Checksum manifest and Homebrew formula rendering.** Release archive
+  checksums were recorded with their directory prefix (e.g.
+  `dist/zpic-v0.2.0-x86_64-apple-darwin.tar.gz`) instead of a bare
+  filename, which broke both `shasum -c checksums.txt` for end users and
+  the awk lookup that resolves the source tarball's SHA-256 for the
+  rendered Homebrew formula.
 
 ## [0.2.0] - 2026-06-11
 

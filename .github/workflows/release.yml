@@ -108,7 +108,7 @@ jobs:
           cp README.md LICENSE "${stage}/"
 
           tar -C "dist/stage" -czf "${archive}" "${stem}"
-          shasum -a 256 "${archive}" | tee "${archive}.sha256"
+          (cd dist && shasum -a 256 "$(basename "${archive}")" | tee "$(basename "${archive}").sha256")
 
       - name: Package Windows archive
         if: runner.os == 'Windows'
@@ -168,7 +168,7 @@ jobs:
 
           archive="release-artifacts/zpic-v${VERSION}-source.tar.gz"
           git archive --format=tar.gz --prefix="zpic-v${VERSION}/" HEAD > "${archive}"
-          shasum -a 256 "${archive}" | tee "${archive}.sha256"
+          (cd release-artifacts && shasum -a 256 "$(basename "${archive}")" | tee "$(basename "${archive}").sha256")
 
       - name: Build checksum manifest
         shell: bash
