@@ -16,7 +16,8 @@ crates/
 ├── zpic-history/     # SQLite-backed upload history
 ├── zpic-plugins/     # plugin manifests, discovery, registry, and WASM runtime
 ├── zpic-uploaders/   # local, GitHub, S3-compatible, and Aliyun OSS uploaders
-└── zpic-cli/         # the `zpic` binary
+├── zpic-cli/         # the `zpic` binary
+└── zpic-mcp/         # the `zpic-mcp` binary: an MCP server for AI agents
 ```
 
 ## Installation
@@ -147,6 +148,24 @@ Existing legacy zpic configs that still use `default_uploader` and
 `[uploaders.<name>]` are auto-migrated in memory on load. The next save
 through `zpic set uploader`, `zpic use uploader`, or `zpic uploader ...`
 rewrites them in the PicGo-compatible shape.
+
+## AI agent integration
+
+`zpic` is designed to be called by AI coding agents such as Claude Code
+and Codex, in two ways:
+
+- **MCP server.** [`crates/zpic-mcp`](crates/zpic-mcp) exposes
+  `upload_image`, `upload_clipboard_image`, `migrate_markdown_images`,
+  `list_upload_history`, `list_uploaders`, and `doctor` as MCP tools over
+  stdio, with workspace-root/extension/size guardrails on by default. See
+  [`crates/zpic-mcp/README.md`](crates/zpic-mcp/README.md) for setup and
+  registration (`claude mcp add zpic -- zpic-mcp`).
+- **Direct CLI + `--json`.** For agents without MCP support, every
+  state-changing command accepts `--json` and prints one JSON object to
+  `stdout`, per the frozen contract below.
+
+[`AGENTS.md`](AGENTS.md) documents both paths for an agent working in
+this repo or any project with `zpic` installed.
 
 ## Integration contract
 

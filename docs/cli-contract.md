@@ -341,13 +341,19 @@ Slash commands can be implemented in the Zed extension to expose
 
 ## MCP adapter hooks
 
-A future `zpic-mcp` server will expose the same operations as MCP tools:
+`crates/zpic-mcp` (binary `zpic-mcp`) exposes the same operations as MCP
+tools, over stdio, by shelling out to this CLI's `--json` surface:
 
 - `upload_image(path, uploader?, format?)` → `UploadPayload`
-- `migrate_markdown_images(path, dry_run?)` → `MigrateReport`
+- `upload_clipboard_image(uploader?, format?)` → `UploadPayload` (off by default)
+- `migrate_markdown_images(path, dry_run?)` → `MigrateReport` (dry-run forced unless write mode is enabled)
 - `list_upload_history(uploader?, limit?)` → `[HistoryEntry]`
+- `list_uploaders()` → uploader list payload (see `zpic uploader list --json` above)
 - `doctor()` → `DoctorReport`
 
-MCP defaults must continue to be safe (no destructive operations
-without explicit flags, workspace-root restrictions, etc.). The JSON
-contract above is the wire format.
+MCP defaults stay safe by construction: file-taking tools reject paths
+outside a configured `workspace_roots`, over `max_file_size_mb`, or with
+a disallowed extension; clipboard access and Markdown-rewrite mode are
+both opt-in. See [`crates/zpic-mcp/README.md`](../crates/zpic-mcp/README.md)
+for the full config. The JSON contract above is the wire format each
+tool returns verbatim.

@@ -8,6 +8,7 @@ members = [
     "crates/zpic-plugins",
     "crates/zpic-uploaders",
     "crates/zpic-cli",
+    "crates/zpic-mcp",
 ]
 exclude = ["extensions/zed"]
 
