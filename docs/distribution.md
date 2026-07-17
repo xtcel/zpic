@@ -101,12 +101,15 @@ tap repository. For this project, create:
 
 The checked-in [`Formula/zpic.rb`](../Formula/zpic.rb) file is the
 template source-of-truth. Each tagged release renders a concrete
-`zpic.rb` formula that points at the versioned `zpic-v<version>-source.tar.gz`
-release asset and includes the matching SHA-256.
+`zpic.rb` formula that installs the prebuilt binary for the running
+platform (`aarch64-apple-darwin`, `x86_64-apple-darwin`, or
+`x86_64-unknown-linux-gnu`) via `on_macos`/`on_arm`/`on_intel`/`on_linux`
+blocks, with the matching SHA-256 for each. This avoids requiring a
+Rust/LLVM toolchain on the end user's machine, since CI already produces
+per-platform binaries for the GitHub Release.
 
 That generated formula should be copied into `xtcel/homebrew-tap` and
-committed there. The formula builds from source with `cargo install`,
-which is a better fit for Homebrew than shipping a binary-only formula.
+committed there.
 
 ## Suggested Release Flow
 

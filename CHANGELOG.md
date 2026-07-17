@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-17
+
+### Changed
+
+- **Homebrew formula now installs a prebuilt binary instead of compiling
+  from source.** `brew install xtcel/tap/zpic` previously ran
+  `cargo install` against a source tarball with `depends_on "rust" =>
+  :build`, which pulled a full Rust/LLVM toolchain (~2.5 GB) onto the
+  user's machine just to produce a 15 MB binary. The formula now selects
+  the matching prebuilt archive from the GitHub Release
+  (`aarch64-apple-darwin`, `x86_64-apple-darwin`, or
+  `x86_64-unknown-linux-gnu`) via `on_macos`/`on_arm`/`on_intel`/
+  `on_linux` blocks and installs the binary directly, with no build-time
+  dependencies.
+
 ## [0.2.2] - 2026-07-17
 
 ### Fixed

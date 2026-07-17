@@ -4000,7 +4000,7 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[package]]
 name = "zpic"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4045,7 +4045,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-config"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "directories",
  "serde",
@@ -4060,7 +4060,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4073,7 +4073,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-history"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "chrono",
  "directories",
@@ -4085,7 +4085,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-mcp"
-version = "0.2.1"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "directories",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-media"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "blake3",
  "bytes",
@@ -4116,7 +4116,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-plugins"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "async-trait",
  "base64",
@@ -4136,7 +4136,7 @@ dependencies = [
 
 [[package]]
 name = "zpic-uploaders"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "async-trait",
  "base64",
